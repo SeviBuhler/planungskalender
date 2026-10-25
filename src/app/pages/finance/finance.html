@@ -4,9 +4,48 @@
         <a class="px-4 py-2 rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100" routerLink="/calendar">Kalender</a>
     </header>
 
+    @switch (state()) {
+    @case ('setup') {
+        <section class="max-w-md mx-auto mt-8 rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-6 flex flex-col gap-4">
+            <h2 class="font-semibold text-xl">Gemeinsamer Haushalt</h2>
+            <p class="text-sm">Die Finanzplanung gehört zu einem Haushalt, den ihr zu zweit teilt. Eine Person erstellt ihn, die andere tritt mit dem Einladungscode bei.</p>
+            <button class="p-3 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white" (click)="createHousehold()">Haushalt erstellen</button>
+            <div class="flex gap-2">
+                <input class="flex-1 p-3 rounded-lg bg-white uppercase text-center" [(ngModel)]="inviteCode" placeholder="Einladungscode" />
+                <button class="px-4 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white" (click)="joinHousehold()">Beitreten</button>
+            </div>
+            @if (errorText()) {
+                <p class="p-2 rounded bg-red-200 text-red-900 text-sm">{{ errorText() }}</p>
+            }
+        </section>
+    }
+    @case ('error') {
+        <section class="max-w-md mx-auto mt-8 rounded-lg bg-red-200 text-red-900 shadow p-6">
+            <h2 class="font-semibold text-lg mb-2">Die Finanzdaten konnten nicht geladen werden</h2>
+            <p class="text-sm">{{ errorText() }}</p>
+        </section>
+    }
+    @case ('loading') {
+        <p class="text-center mt-8">Lade…</p>
+    }
+    @case ('ready') {
+    @if (household(); as h) {
+        @if (h.memberCount < 2) {
+            <p class="mb-4 p-3 rounded-lg bg-sky-100 text-sky-950 text-sm">Einladungscode für die zweite Person: <b class="font-mono tracking-widest">{{ h.inviteCode }}</b></p>
+        }
+    }
     <div class="flex items-center justify-between gap-2 mb-4">
         <button class="px-4 py-2 rounded-lg shadow bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white" (click)="goToPreviousMonth()" aria-label="Vorheriger Monat">‹</button>
-        <h2 class="text-xl md:text-2xl font-semibold capitalize">{{ monthLabel() }}</h2>
+        <div class="text-center">
+            <h2 class="text-xl md:text-2xl font-semibold capitalize">{{ monthLabel() }}</h2>
+            <p class="text-xs h-4" [class.text-red-700]="saveState() === 'error'">
+                @switch (saveState()) {
+                    @case ('saving') { Speichert… }
+                    @case ('saved') { Gespeichert }
+                    @case ('error') { Speichern fehlgeschlagen: {{ errorText() }} }
+                }
+            </p>
+        </div>
         <button class="px-4 py-2 rounded-lg shadow bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white" (click)="goToNextMonth()" aria-label="Nächster Monat">›</button>
     </div>
 
@@ -114,4 +153,6 @@
             }
         </aside>
     </div>
+    }
+    }
 </div>
