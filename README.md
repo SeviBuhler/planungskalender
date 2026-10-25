@@ -12,6 +12,13 @@ ng serve
 
 Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
 
+## Supabase
+
+Die Finanzplanung speichert ihre Daten in Supabase. Die Tabellen, Zugriffsregeln (RLS) und Funktionen stehen in `supabase/migrations/`. Jede Datei dort einmal im Supabase-Dashboard unter **SQL Editor** ausführen (oder mit der Supabase CLI `supabase db push`).
+
+- `households` / `household_members`: ein gemeinsamer Haushalt für höchstens zwei Personen. Eine Person erstellt ihn auf der Finanzseite, die zweite tritt mit dem angezeigten Einladungscode bei.
+- `month_budgets`: ein Eintrag pro Haushalt und Monat, der Plan liegt als JSON in `data`. Nur Mitglieder des Haushalts können ihn lesen und ändern.
+
 ## Code scaffolding
 
 Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
