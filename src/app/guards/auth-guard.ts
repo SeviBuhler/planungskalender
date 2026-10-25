@@ -3,13 +3,15 @@ import { inject } from '@angular/core';
 import { Supabase } from '../services/supabase'
 import { Router } from '@angular/router'
 
-export const authGuard: CanActivateFn = (route, state) => {
+export const authGuard: CanActivateFn = async (route, state) => {
   const supabase = inject(Supabase);
   const router = inject(Router);
 
-  if (supabase.currentSession() != null) {
+  // Wait for the stored session, otherwise a reload on /calendar always lands on /login
+  const session = await supabase.sessionReady;
+
+  if (session != null) {
     return true;
   }
-  router.navigate(['/login']);
-  return false;
+  return router.createUrlTree(['/login']);
 };
