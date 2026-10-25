@@ -7,10 +7,10 @@ export const authGuard: CanActivateFn = async (route, state) => {
   const supabase = inject(Supabase);
   const router = inject(Router);
 
-  // Wait for the stored session, otherwise a reload on /calendar always lands on /login
-  const session = await supabase.sessionReady;
+  // getSession() waits for the stored session after a reload and also sees a login that just happened
+  const { data } = await supabase.client.auth.getSession();
 
-  if (session != null) {
+  if (data.session != null) {
     return true;
   }
   return router.createUrlTree(['/login']);
