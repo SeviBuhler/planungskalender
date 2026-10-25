@@ -1,6 +1,6 @@
 import { Component, computed, signal } from '@angular/core';
 import { Supabase } from '../../services/supabase';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 
 export interface CalendarDay {
   date: Date;
@@ -31,7 +31,7 @@ export function buildMonthGrid(year: number, month: number, today: Date = new Da
 
 @Component({
   selector: 'app-calendar',
-  imports: [],
+  imports: [RouterLink],
   templateUrl: './calendar.html',
   styleUrl: './calendar.css',
 })
