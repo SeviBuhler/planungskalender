@@ -8,5 +8,10 @@ export const routes: Routes = [
     { path: 'login', component: Login },
     { path: 'signup', component: Signup },
     { path: 'calendar', component: Calendar, canActivate: [authGuard] },
+    {
+        path: 'finance',
+        loadComponent: () => import('./pages/finance/finance').then((m) => m.Finance),
+        canActivate: [authGuard]
+    },
     { path: '', redirectTo: 'login', pathMatch: 'full' }
 ];
