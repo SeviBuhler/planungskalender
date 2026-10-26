@@ -8,7 +8,8 @@ import { DeviceUnlock } from '../../features/auth/device-unlock';
 type Step = 'credentials' | 'second-factor' | 'code' | 'offer-passkey';
 
 // When the user said "later" to the device unlock on this device; asked again after 30 days
-const PASSKEY_DECLINED_KEY = 'fortwo.passkeyDeclinedAt';
+// (new key: "later" from the time the device unlock could not work yet no longer counts)
+const PASSKEY_DECLINED_KEY = 'fortwo.deviceUnlockDeclinedAt';
 const PASSKEY_ASK_AGAIN_MS = 30 * 86400 * 1000;
 
 @Component({
@@ -28,6 +29,8 @@ export class Login implements OnInit {
   // This device has a passkey for the device unlock
   passkeyHere = signal(false);
   passkeySupported = signal(false);
+  // The user asked to set up the device unlock, so offer it after the code even after "later"
+  private wantsSetup = false;
 
   constructor(public supabase: Supabase, private router: Router, private deviceUnlock: DeviceUnlock) {}
 
@@ -84,6 +87,12 @@ export class Login implements OnInit {
     });
   }
 
+  // Setting up needs a fresh mail code, so this sends one and offers the device unlock afterwards
+  async setupWithCode() {
+    this.wantsSetup = true;
+    await this.sendCode();
+  }
+
   async verifyCode() {
     await this.run(async () => {
       const result = await this.supabase.client.auth.verifyOtp({
@@ -92,7 +101,7 @@ export class Login implements OnInit {
         type: 'email'
       });
       if (result.error) throw new Error('Der Code stimmt nicht oder ist abgelaufen.');
-      if (this.passkeySupported() && !this.deviceUnlock.registeredHere && !passkeyDeclined()) {
+      if (this.passkeySupported() && !this.deviceUnlock.registeredHere && (this.wantsSetup || !passkeyDeclined())) {
         this.step.set('offer-passkey');
       } else {
         this.router.navigate(['/calendar']);
