@@ -7,6 +7,7 @@ import { MIN_SEARCH_LENGTH, Product, ProductSearch } from '../../features/shoppi
 import { Household, HouseholdStore } from '../../features/households/household-store';
 import { ConfirmService } from '../../components/confirm/confirm';
 import { Select, SelectOption } from '../../components/select/select';
+import { PageHeader } from '../../components/page-header/page-header';
 
 type ViewState = 'loading' | 'empty' | 'ready' | 'error';
 type Panel = 'none' | 'new' | 'settings';
@@ -49,7 +50,7 @@ function optional(text: string): string | null {
 
 @Component({
   selector: 'app-shopping',
-  imports: [FormsModule, NgTemplateOutlet, RouterLink, Select],
+  imports: [PageHeader, FormsModule, NgTemplateOutlet, RouterLink, Select],
   templateUrl: './shopping.html',
 })
 export class Shopping implements OnDestroy {
