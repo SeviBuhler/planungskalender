@@ -1,5 +1,6 @@
 // Monthly budget allocation:
-// 1. planned expenses must be covered, 2. debts are paid in order, 3. savings get what is left.
+// 1. planned expenses must be covered, 2. debts and savings goals share one priority list
+// and are paid top to bottom, each up to its desired payment.
 
 export interface PlannedExpense {
   name: string;
@@ -8,16 +9,14 @@ export interface PlannedExpense {
   note?: string;
 }
 
-export interface Debt {
-  name: string;
-  open: number;
-  note?: string;
-}
+export type PriorityKind = 'debt' | 'saving';
 
-export interface SavingsGoal {
+export interface PriorityItem {
+  kind: PriorityKind;
   name: string;
-  target: number;
-  desiredRate: number;
+  amount: number; // open debt or remaining savings target
+  desiredRate: number | null; // null: as much as possible
+  note?: string;
 }
 
 export interface MonthBudget {
@@ -25,31 +24,23 @@ export interface MonthBudget {
   startBalance: number;
   income: number;
   expenses: PlannedExpense[];
-  debts: Debt[]; // in order of priority
-  savings: SavingsGoal[]; // in order of priority
+  priorities: PriorityItem[]; // debts and savings, highest priority first
 }
 
-export interface DebtPayment {
+export interface PriorityPayment {
+  kind: PriorityKind;
   name: string;
-  open: number;
+  amount: number;
   payment: number;
-  remaining: number;
-}
-
-export interface SavingsPayment {
-  name: string;
-  target: number;
-  rate: number;
   remaining: number;
 }
 
 export interface Allocation {
   totalAvailable: number;
   plannedTotal: number;
-  availableForDebtsAndSavings: number;
-  debts: DebtPayment[];
+  availableForPriorities: number;
+  priorities: PriorityPayment[];
   debtTotal: number;
-  savings: SavingsPayment[];
   savingsTotal: number;
   totalSpent: number;
   endBalance: number;
@@ -63,41 +54,54 @@ export function expenseTotal(expense: PlannedExpense): number {
   return expense.amountPerUnit * expense.quantity;
 }
 
+interface LegacyBudget {
+  debts?: { name: string; open: number; note?: string }[];
+  savings?: { name: string; target: number; desiredRate: number }[];
+}
+
+// Months saved before the shared priority list had separate debts (paid in full, first)
+// and savings lists; they keep their result: debts first, then savings
+export function normalizeBudget(raw: MonthBudget & LegacyBudget): MonthBudget {
+  const { debts, savings, ...rest } = raw;
+  if (raw.priorities) return { ...rest, priorities: raw.priorities };
+  return {
+    ...rest,
+    priorities: [
+      ...(debts ?? []).map((d) => ({ kind: 'debt' as const, name: d.name, amount: d.open, desiredRate: null, ...(d.note ? { note: d.note } : {}) })),
+      ...(savings ?? []).map((g) => ({ kind: 'saving' as const, name: g.name, amount: g.target, desiredRate: g.desiredRate })),
+    ],
+  };
+}
+
 export function allocate(budget: MonthBudget): Allocation {
   const totalAvailable = budget.startBalance + budget.income;
   const plannedTotal = sum(budget.expenses.map(expenseTotal));
-  const availableForDebtsAndSavings = totalAvailable - plannedTotal;
+  const availableForPriorities = totalAvailable - plannedTotal;
 
-  let left = Math.max(0, availableForDebtsAndSavings);
+  let left = Math.max(0, availableForPriorities);
 
-  const debts = budget.debts.map((debt) => {
-    const payment = Math.min(debt.open, left);
+  const priorities = budget.priorities.map((item) => {
+    const payment = Math.max(0, Math.min(item.amount, item.desiredRate ?? item.amount, left));
     left -= payment;
-    return { name: debt.name, open: debt.open, payment, remaining: debt.open - payment };
+    return { kind: item.kind, name: item.name, amount: item.amount, payment, remaining: item.amount - payment };
   });
 
-  const savings = budget.savings.map((goal) => {
-    const rate = Math.min(goal.desiredRate, goal.target, left);
-    left -= rate;
-    return { name: goal.name, target: goal.target, rate, remaining: goal.target - rate };
-  });
-
-  const debtTotal = sum(debts.map((d) => d.payment));
-  const savingsTotal = sum(savings.map((s) => s.rate));
+  const total = (kind: PriorityKind) => sum(priorities.filter((p) => p.kind === kind).map((p) => p.payment));
+  const debtTotal = total('debt');
+  const savingsTotal = total('saving');
   const totalSpent = plannedTotal + debtTotal + savingsTotal;
 
   return {
     totalAvailable,
     plannedTotal,
-    availableForDebtsAndSavings,
-    debts,
+    availableForPriorities,
+    priorities,
     debtTotal,
-    savings,
     savingsTotal,
     totalSpent,
     endBalance: totalAvailable - totalSpent,
     plannedCovered: totalAvailable >= plannedTotal,
-    remainingDebt: sum(debts.map((d) => d.remaining)),
+    remainingDebt: sum(priorities.filter((p) => p.kind === 'debt').map((p) => p.remaining)),
   };
 }
 
@@ -116,11 +120,8 @@ export function carryOver(budget: MonthBudget): MonthBudget {
     startBalance: result.endBalance,
     income: 0,
     expenses: budget.expenses.map((e) => ({ ...e })),
-    debts: budget.debts
-      .map((d, i) => ({ ...d, open: result.debts[i].remaining }))
-      .filter((d) => d.open > 0),
-    savings: budget.savings
-      .map((s, i) => ({ ...s, target: result.savings[i].remaining }))
-      .filter((s) => s.target > 0),
+    priorities: budget.priorities
+      .map((item, i) => ({ ...item, amount: result.priorities[i].remaining }))
+      .filter((item) => item.amount > 0),
   };
 }

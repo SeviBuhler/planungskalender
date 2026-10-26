@@ -43,8 +43,10 @@ const BUDGET: MonthBudget = {
   startBalance: 200,
   income: 3000,
   expenses: [{ name: 'Miete', amountPerUnit: 1400, quantity: 1 }],
-  debts: [{ name: 'Rechnung', open: 500 }, { name: 'Kreditkarte', open: 1500 }],
-  savings: [],
+  priorities: [
+    { kind: 'debt', name: 'Rechnung', amount: 500, desiredRate: null },
+    { kind: 'debt', name: 'Kreditkarte', amount: 1500, desiredRate: null },
+  ],
 };
 
 describe('Finance', () => {
@@ -98,7 +100,7 @@ describe('Finance', () => {
 
     expect(store.plans).toEqual([{ id: 'p1', name: 'Mein Budget', ownerId: ME, householdId: null }]);
     expect(component.state()).toBe('ready');
-    expect(component.budget()).toEqual({ month: '2026-10', startBalance: 0, income: 0, expenses: [], debts: [], savings: [] });
+    expect(component.budget()).toEqual({ month: '2026-10', startBalance: 0, income: 0, expenses: [], priorities: [] });
   });
 
   it('offers only households that use the finance module', async () => {
@@ -165,6 +167,28 @@ describe('Finance', () => {
 
     await component.goToNextMonth();
     expect(component.budget().month).toBe('2026-11');
-    expect(component.budget().debts).toEqual([{ name: 'Kreditkarte', open: 200 }]);
+    expect(component.budget().priorities).toEqual([{ kind: 'debt', name: 'Kreditkarte', amount: 200, desiredRate: null }]);
+  });
+
+  it('mixes debts and savings in one priority list with desired payments', async () => {
+    store.plans.push({ id: 'p0', name: 'Mein Budget', ownerId: ME, householdId: null });
+    store.rows.set('p0/2026-10', { ...BUDGET, income: 3500 });
+    await create();
+
+    component.addPriority('saving');
+    component.setItem('priorities', 2, 'name', 'Ferien');
+    component.setItem('priorities', 2, 'amount', 1000);
+    component.setItem('priorities', 2, 'desiredRate', 300);
+    component.move(2, -1);
+    component.move(1, -1);
+    component.setItem('priorities', 1, 'desiredRate', 200); // Rechnung: only 200 this month
+    expect(component.budget().priorities.map((p) => p.name)).toEqual(['Ferien', 'Rechnung', 'Kreditkarte']);
+    // 2300 left after rent: Ferien 300, Rechnung 200, Kreditkarte gets the rest
+    expect(component.result().priorities.map((p) => p.payment)).toEqual([300, 200, 1500]);
+
+    component.setItem('priorities', 1, 'desiredRate', '');
+    expect(component.budget().priorities[1].desiredRate).toBeNull();
+    component.setItem('priorities', 0, 'kind', 'debt');
+    expect(component.result().debtTotal).toBe(2300);
   });
 });
