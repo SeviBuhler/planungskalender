@@ -144,55 +144,46 @@
                     </div>
                 }
                 <div class="flex justify-between items-center mt-2">
-                    <button class="px-3 py-1 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white" (click)="addItem('expenses')">+ Ausgabe</button>
+                    <button class="px-3 py-1 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white" (click)="addExpense()">+ Ausgabe</button>
                     <span class="font-semibold">Zwischensumme: {{ chf(result().plannedTotal) }} CHF</span>
                 </div>
             </section>
 
-            <!-- 2. Schulden -->
+            <!-- 2. Schulden & Sparen -->
             <section class="rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-4">
-                <h3 class="font-semibold text-lg">2. Schulden abbezahlen</h3>
-                <p class="text-xs mb-3">Werden von oben nach unten bezahlt, jede Position bekommt so viel wie möglich.</p>
-                @for (debt of budget().debts; track $index; let i = $index) {
-                    <div class="grid grid-cols-12 gap-2 items-center mb-2">
-                        <button class="col-span-1 disabled:opacity-30" [disabled]="i === 0" (click)="moveUp('debts', i)" aria-label="Priorität erhöhen">▲</button>
-                        <input class="col-span-11 sm:col-span-4 p-2 rounded bg-white" [ngModel]="debt.name" (ngModelChange)="setItem('debts', i, 'name', $event)" placeholder="Position" />
-                        <label class="col-span-4 sm:col-span-2 text-xs">Offen
-                            <input class="w-full p-2 rounded bg-yellow-100 text-right" type="number" [ngModel]="debt.open" (ngModelChange)="setItem('debts', i, 'open', $event)" />
+                <h3 class="font-semibold text-lg">2. Schulden & Sparen nach Priorität</h3>
+                <p class="text-xs mb-3">Was nach den Ausgaben übrig ist, geht von oben nach unten an die Positionen, jeweils bis zur Wunschzahlung. Leer lassen heisst: so viel wie möglich. Schulden und Sparziele kannst du beliebig mischen.</p>
+                @for (item of budget().priorities; track $index; let i = $index; let last = $last) {
+                    <div class="grid grid-cols-12 gap-2 items-center mb-3 sm:mb-2">
+                        <div class="col-span-2 sm:col-span-1 flex flex-col items-center leading-none">
+                            <button class="px-1 disabled:opacity-30" [disabled]="i === 0" (click)="move(i, -1)" aria-label="Priorität erhöhen">▲</button>
+                            <span class="text-xs font-semibold">{{ i + 1 }}</span>
+                            <button class="px-1 disabled:opacity-30" [disabled]="last" (click)="move(i, 1)" aria-label="Priorität senken">▼</button>
+                        </div>
+                        <button class="col-span-3 sm:col-span-1 px-1 py-2 rounded-lg text-xs font-semibold transition-colors"
+                                [class]="item.kind === 'debt' ? 'bg-rose-200 text-rose-900' : 'bg-emerald-200 text-emerald-900'"
+                                (click)="setItem('priorities', i, 'kind', item.kind === 'debt' ? 'saving' : 'debt')"
+                                [attr.aria-label]="'Art wechseln, jetzt ' + (item.kind === 'debt' ? 'Schuld' : 'Sparziel')">
+                            {{ item.kind === 'debt' ? 'Schuld' : 'Sparen' }}
+                        </button>
+                        <input class="col-span-7 sm:col-span-3 p-2 rounded bg-white" [ngModel]="item.name" (ngModelChange)="setItem('priorities', i, 'name', $event)" [placeholder]="item.kind === 'debt' ? 'Schuld' : 'Sparziel'" />
+                        <label class="col-span-4 sm:col-span-2 text-xs">{{ item.kind === 'debt' ? 'Offen' : 'Ziel' }}
+                            <input class="w-full p-2 rounded bg-yellow-100 text-right" type="number" [ngModel]="item.amount" (ngModelChange)="setItem('priorities', i, 'amount', $event)" />
                         </label>
-                        <span class="col-span-3 sm:col-span-2 text-right text-sm">Zahlung<br><b>{{ chf(result().debts[i].payment) }}</b></span>
-                        <span class="col-span-3 sm:col-span-2 text-right text-sm">Rest<br>{{ chf(result().debts[i].remaining) }}</span>
-                        <button class="col-span-2 sm:col-span-1 text-fuchsia-700 hover:text-fuchsia-500" (click)="removeItem('debts', i)" aria-label="Entfernen">✕</button>
+                        <label class="col-span-4 sm:col-span-2 text-xs">Wunschzahlung
+                            <input class="w-full p-2 rounded bg-yellow-100 text-right" type="number" placeholder="max." [ngModel]="item.desiredRate" (ngModelChange)="setItem('priorities', i, 'desiredRate', $event)" />
+                        </label>
+                        <span class="col-span-2 sm:col-span-1 text-right text-sm">Zahlung<br><b>{{ chf(result().priorities[i].payment) }}</b></span>
+                        <span class="col-span-2 sm:col-span-1 text-right text-sm">Rest<br>{{ chf(result().priorities[i].remaining) }}</span>
+                        <button class="col-span-12 sm:col-span-1 text-fuchsia-700 hover:text-fuchsia-500" (click)="removeItem('priorities', i)" aria-label="Entfernen">✕</button>
                     </div>
                 }
-                <div class="flex justify-between items-center mt-2">
-                    <button class="px-3 py-1 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white" (click)="addItem('debts')">+ Schuld</button>
-                    <span class="font-semibold">Zahlungen: {{ chf(result().debtTotal) }} CHF</span>
-                </div>
-            </section>
-
-            <!-- 3. Sparen -->
-            <section class="rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-4">
-                <h3 class="font-semibold text-lg">3. Sparen</h3>
-                <p class="text-xs mb-3">Wunschrate, aber höchstens das, was nach den Schulden übrig ist. Oben hat Vorrang.</p>
-                @for (goal of budget().savings; track $index; let i = $index) {
-                    <div class="grid grid-cols-12 gap-2 items-center mb-2">
-                        <button class="col-span-1 disabled:opacity-30" [disabled]="i === 0" (click)="moveUp('savings', i)" aria-label="Priorität erhöhen">▲</button>
-                        <input class="col-span-11 sm:col-span-3 p-2 rounded bg-white" [ngModel]="goal.name" (ngModelChange)="setItem('savings', i, 'name', $event)" placeholder="Sparziel" />
-                        <label class="col-span-4 sm:col-span-2 text-xs">Ziel
-                            <input class="w-full p-2 rounded bg-yellow-100 text-right" type="number" [ngModel]="goal.target" (ngModelChange)="setItem('savings', i, 'target', $event)" />
-                        </label>
-                        <label class="col-span-4 sm:col-span-2 text-xs">Wunschrate
-                            <input class="w-full p-2 rounded bg-yellow-100 text-right" type="number" [ngModel]="goal.desiredRate" (ngModelChange)="setItem('savings', i, 'desiredRate', $event)" />
-                        </label>
-                        <span class="col-span-2 sm:col-span-2 text-right text-sm">Rate<br><b>{{ chf(result().savings[i].rate) }}</b></span>
-                        <span class="col-span-2 sm:col-span-1 text-right text-sm">Offen<br>{{ chf(result().savings[i].remaining) }}</span>
-                        <button class="col-span-12 sm:col-span-1 text-fuchsia-700 hover:text-fuchsia-500" (click)="removeItem('savings', i)" aria-label="Entfernen">✕</button>
+                <div class="flex flex-wrap justify-between items-center gap-2 mt-2">
+                    <div class="flex gap-2">
+                        <button class="px-3 py-1 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white" (click)="addPriority('debt')">+ Schuld</button>
+                        <button class="px-3 py-1 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white" (click)="addPriority('saving')">+ Sparziel</button>
                     </div>
-                }
-                <div class="flex justify-between items-center mt-2">
-                    <button class="px-3 py-1 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white" (click)="addItem('savings')">+ Sparziel</button>
-                    <span class="font-semibold">Sparraten: {{ chf(result().savingsTotal) }} CHF</span>
+                    <span class="font-semibold">Zahlungen: {{ chf(result().debtTotal + result().savingsTotal) }} CHF</span>
                 </div>
             </section>
         </div>

@@ -1,13 +1,13 @@
 import { Component, OnDestroy, computed, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { MonthBudget, allocate, carryOver, expenseTotal, nextMonth } from '../../features/finance/allocate';
+import { MonthBudget, PriorityKind, allocate, carryOver, expenseTotal, nextMonth } from '../../features/finance/allocate';
 import { BudgetStore, FinancePlan } from '../../features/finance/budget-store';
 import { Household, HouseholdStore } from '../../features/households/household-store';
 import { ConfirmService } from '../../components/confirm/confirm';
 import { Select, SelectOption } from '../../components/select/select';
 
-type ListKey = 'expenses' | 'debts' | 'savings';
+type ListKey = 'expenses' | 'priorities';
 type ViewState = 'loading' | 'empty' | 'ready' | 'error';
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 type Panel = 'none' | 'new' | 'settings';
@@ -35,8 +35,15 @@ function errorMessage(error: unknown): string {
     : 'Unbekannter Fehler';
 }
 
+// Text fields stay text, an empty desired payment means "as much as possible", everything else is a number
+function parseField(field: string, value: string | number | null): string | number | null {
+  if (field === 'name' || field === 'note' || field === 'kind') return value;
+  if (field === 'desiredRate' && (value === null || value === '')) return null;
+  return Number(value) || 0;
+}
+
 function emptyBudget(month: string): MonthBudget {
-  return { month, startBalance: 0, income: 0, expenses: [], debts: [], savings: [] };
+  return { month, startBalance: 0, income: 0, expenses: [], priorities: [] };
 }
 
 function rememberPlan(id: string) {
@@ -297,35 +304,33 @@ export class Finance implements OnDestroy {
     this.edit((b) => ({ ...b, [field]: Number(value) || 0 }));
   }
 
-  setItem(list: ListKey, index: number, field: string, value: string | number) {
+  setItem(list: ListKey, index: number, field: string, value: string | number | null) {
     this.edit((b) => {
-      const items = b[list].map((item, i) =>
-        i === index ? { ...item, [field]: field === 'name' || field === 'note' ? value : Number(value) || 0 } : item
-      );
+      const items = (b[list] as object[]).map((item, i) => (i === index ? { ...item, [field]: parseField(field, value) } : item));
       return { ...b, [list]: items };
     });
   }
 
-  addItem(list: ListKey) {
-    const blank = {
-      expenses: { name: '', amountPerUnit: 0, quantity: 1 },
-      debts: { name: '', open: 0 },
-      savings: { name: '', target: 0, desiredRate: 0 },
-    }[list];
-    this.edit((b) => ({ ...b, [list]: [...b[list], blank] }));
+  addExpense() {
+    this.edit((b) => ({ ...b, expenses: [...b.expenses, { name: '', amountPerUnit: 0, quantity: 1 }] }));
+  }
+
+  addPriority(kind: PriorityKind) {
+    this.edit((b) => ({ ...b, priorities: [...b.priorities, { kind, name: '', amount: 0, desiredRate: null }] }));
   }
 
   removeItem(list: ListKey, index: number) {
-    this.edit((b) => ({ ...b, [list]: b[list].filter((_, i) => i !== index) }));
+    this.edit((b) => ({ ...b, [list]: (b[list] as object[]).filter((_, i) => i !== index) }));
   }
 
-  // Moves an entry up in the priority order (debts and savings are paid top to bottom)
-  moveUp(list: 'debts' | 'savings', index: number) {
-    if (index === 0) return;
+  // Debts and savings goals share one priority list that is paid top to bottom
+  move(index: number, direction: -1 | 1) {
+    const target = index + direction;
+    if (target < 0 || target >= this.budget().priorities.length) return;
     this.edit((b) => {
-      const items = [...b[list]];
-      [items[index - 1], items[index]] = [items[index], items[index - 1]];
-      return { ...b, [list]: items };
+      const items = [...b.priorities];
+      [items[target], items[index]] = [items[index], items[target]];
+      return { ...b, priorities: items };
     });
   }
 }

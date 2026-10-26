@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Supabase } from '../../services/supabase';
-import { MonthBudget } from './allocate';
+import { MonthBudget, normalizeBudget } from './allocate';
 
 // A plan without household is private: only its owner can see it
 export interface FinancePlan {
@@ -84,7 +84,7 @@ export class BudgetStore {
       .eq('month', month)
       .maybeSingle();
     if (error) throw error;
-    return data ? (data.data as MonthBudget) : null;
+    return data ? normalizeBudget(data.data as MonthBudget) : null;
   }
 
   async save(planId: string, budget: MonthBudget): Promise<void> {
