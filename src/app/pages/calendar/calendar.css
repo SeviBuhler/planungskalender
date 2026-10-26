@@ -1,0 +1,4 @@
+/* Keeps vertical scrolling while horizontal swipes change the date */
+.swipe-area {
+  touch-action: pan-y;
+}

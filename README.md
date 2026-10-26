@@ -19,6 +19,7 @@ Die Finanzplanung speichert ihre Daten in Supabase. Die Tabellen, Zugriffsregeln
 - `households` / `household_members`: freiwillige Haushalte als übergeordnete Struktur. Jeder Haushalt schaltet Module ein (`modules`: `finance`, `calendar`, später `shopping`). Erstellen, beitreten (Einladungscode), Module wählen und verlassen geht auf der Seite „Haushalte“. Bis zu 50 Mitglieder, eine Person kann in mehreren Haushalten sein.
 - `finance_plans`: Finanzpläne mit Besitzer:in. Ohne `household_id` ist ein Plan privat. Mit `household_id` sehen und bearbeiten ihn alle Mitglieder des Haushalts (sofern das Modul Finanzplanung eingeschaltet ist). Nur die Besitzer:in kann ihn umbenennen, teilen, wieder privat machen oder löschen.
 - `month_budgets`: ein Eintrag pro Plan und Monat, der Monatsplan liegt als JSON in `data`.
+- `calendar_events`: Termine, privat oder in einem Haushalt mit Modul Kalender (dort dürfen alle Mitglieder sie bearbeiten). Termine, die seit mehr als 5 Jahren vorbei sind, löscht ein täglicher pg_cron-Job (`purge-old-calendar-events`).
 
 ## Code scaffolding
 
