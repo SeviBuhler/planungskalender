@@ -14,7 +14,9 @@ export class Supabase {
     readonly sessionReady: Promise<Session | null>;
 
     constructor () {
-        this.supabase = createClient(environment.supabaseUrl, environment.supabaseKey);
+        this.supabase = createClient(environment.supabaseUrl, environment.supabaseKey, {
+            global: { fetch: retryFutureJwt }
+        });
 
         this.supabase.auth.onAuthStateChange((event, session) => {
             this.currentSession.set(session);
@@ -40,4 +42,15 @@ export class Supabase {
         if (state === 'none') await this.supabase.auth.signOut({ scope: 'local' });
         return state;
     }
+}
+
+// Right after a login the token can be a second "younger" than the database clock, which then answers
+// 401 "JWT issued at future". Waiting briefly and sending the same request again fixes it.
+async function retryFutureJwt(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+    const response = await fetch(input, init);
+    if (response.status !== 401) return response;
+    const body = await response.clone().text();
+    if (!body.includes('issued at future')) return response;
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    return fetch(input, init);
 }
