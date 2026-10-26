@@ -16,15 +16,16 @@ class FakeCalendarStore {
     this.ranges.push([from, to]);
     return this.events.filter((e) => e.start < to && e.end >= from);
   }
-  async create(input: EventInput) {
-    const event = { ...input, id: `e${this.nextId++}`, ownerId: 'me' };
-    this.events.push(event);
-    return event;
+  async create(inputs: EventInput[]) {
+    for (const input of inputs) this.events.push({ ...input, id: `e${this.nextId++}`, ownerId: 'me' });
   }
   async update(id: string, input: EventInput) {
     this.events = this.events.map((e) => (e.id === id ? { ...e, ...input } : e));
   }
   async delete(id: string) { this.events = this.events.filter((e) => e.id !== id); }
+  async deleteSeriesFrom(seriesId: string, from: Date) {
+    this.events = this.events.filter((e) => e.seriesId !== seriesId || e.start < from);
+  }
 }
 
 class FakeHouseholdStore {
@@ -50,7 +51,7 @@ describe('Calendar', () => {
     store = new FakeCalendarStore();
     store.events.push({
       id: 'x', title: 'Zahnarzt', description: null, start: new Date(2026, 9, 28, 9), end: new Date(2026, 9, 28, 10),
-      allDay: false, ownerId: 'me', householdId: null,
+      allDay: false, ownerId: 'me', householdId: null, category: null, seriesId: null, recurrence: null, recurrenceUntil: null,
     });
     await TestBed.configureTestingModule({
       imports: [Calendar],
@@ -140,5 +141,71 @@ describe('Calendar', () => {
     await component.saveEvent();
     expect(component.errorText()).toBe('Das Ende liegt vor dem Beginn');
     expect(store.events.length).toBe(1);
+  });
+
+  it('stores the category', async () => {
+    component.newEvent();
+    component.patchForm({ title: 'Lauftraining', category: 'leisure' });
+    await component.saveEvent();
+    const created = store.events.find((e) => e.title === 'Lauftraining')!;
+    expect(created.category).toBe('leisure');
+    expect(component.tileClass(created)).toContain('violet');
+  });
+
+  it('creates a weekly series up to the end date', async () => {
+    component.newEvent(new Date(2026, 10, 2, 18));
+    component.patchForm({ title: 'Yoga' });
+    component.setRecurrence('weekly');
+    expect(component.form()?.recurrenceUntil).toBe('2027-11-02');
+    component.patchForm({ recurrenceUntil: '2026-11-30' });
+    await component.saveEvent();
+
+    const yoga = store.events.filter((e) => e.title === 'Yoga');
+    expect(yoga.map((e) => e.start.getDate())).toEqual([2, 9, 16, 23, 30]);
+    expect(new Set(yoga.map((e) => e.seriesId)).size).toBe(1);
+    expect(yoga[0].recurrence).toBe('weekly');
+  });
+
+  async function createSeries() {
+    component.newEvent(new Date(2026, 10, 2, 18));
+    component.patchForm({ title: 'Yoga', recurrence: 'weekly', recurrenceUntil: '2026-11-30' });
+    await component.saveEvent();
+    return () => store.events.filter((e) => e.seriesId).sort((a, b) => a.start.getTime() - b.start.getTime());
+  }
+
+  it('changes a single occurrence and keeps it in the series', async () => {
+    const series = await createSeries();
+    component.editEvent(series()[1]);
+    expect(component.showRecurrence(component.form()!)).toBe(false);
+    component.patchForm({ title: 'Yoga (Halle 2)', startTime: '19:00', endTime: '20:00' });
+    await component.saveEvent();
+
+    expect(series().map((e) => e.title)).toEqual(['Yoga', 'Yoga (Halle 2)', 'Yoga', 'Yoga', 'Yoga']);
+    expect(series()[1].start).toEqual(new Date(2026, 10, 9, 19));
+  });
+
+  it('changes this and all following occurrences', async () => {
+    const series = await createSeries();
+    component.editEvent(series()[2]);
+    component.patchForm({ scope: 'following', title: 'Pilates', recurrence: 'biweekly' });
+    await component.saveEvent();
+
+    expect(series().map((e) => `${e.title} ${e.start.getDate()}`)).toEqual(['Yoga 2', 'Yoga 9', 'Pilates 16', 'Pilates 30']);
+  });
+
+  it('deletes this and all following occurrences', async () => {
+    const series = await createSeries();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    component.editEvent(series()[3]);
+    component.patchForm({ scope: 'following' });
+    await component.deleteEvent();
+    expect(series().map((e) => e.start.getDate())).toEqual([2, 9, 16]);
+  });
+
+  it('rejects a repeat end before the start', async () => {
+    component.newEvent(new Date(2026, 10, 2, 18));
+    component.patchForm({ title: 'Yoga', recurrence: 'daily', recurrenceUntil: '2026-11-01' });
+    await component.saveEvent();
+    expect(component.errorText()).toBe('Das Wiederholungsende liegt vor dem Beginn');
   });
 });

@@ -1,6 +1,6 @@
 {
-  "name": "calendarForTwo",
-  "short_name": "calendarForTwo",
+  "name": "ForTwo",
+  "short_name": "ForTwo",
   "display": "standalone",
   "scope": "./",
   "start_url": "./",
