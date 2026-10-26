@@ -15,7 +15,7 @@
         @case ('second-factor') {
             <p class="m-3 w-full max-w-xs text-center text-[#25134D] dark:text-sky-100">Bestätige deine Anmeldung. Danach bleibst du auf diesem Gerät 7 Tage angemeldet.</p>
             @if (passkeyFactorId() && passkeySupported()) {
-                <button class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100 disabled:opacity-60" [disabled]="busy()" (click)="handlePasskey()">Mit Face ID bestätigen</button>
+                <button class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100 disabled:opacity-60" [disabled]="busy()" (click)="handlePasskey()">Mit Gerätesperre bestätigen</button>
             }
             <button class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100 disabled:opacity-60" [disabled]="busy()" (click)="sendCode()">Code per E-Mail senden</button>
             <button class="m-3 text-sm underline text-[#25134D] dark:text-sky-100" (click)="backToStart()">Abbrechen</button>
@@ -30,8 +30,8 @@
             <button class="m-3 text-sm underline text-[#25134D] dark:text-sky-100" (click)="backToStart()">Abbrechen</button>
         }
         @case ('offer-passkey') {
-            <p class="m-3 w-full max-w-xs text-center text-[#25134D] dark:text-sky-100">Nächstes Mal mit Face ID statt E-Mail-Code bestätigen?</p>
-            <button class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100 disabled:opacity-60" [disabled]="busy()" (click)="setupPasskey()">Face ID einrichten</button>
+            <p class="m-3 w-full max-w-xs text-center text-[#25134D] dark:text-sky-100">Nächstes Mal mit der Gerätesperre statt mit dem E-Mail-Code bestätigen? Das geht mit Face ID, Fingerabdruck oder dem Code deines Geräts.</p>
+            <button class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100 disabled:opacity-60" [disabled]="busy()" (click)="setupPasskey()">Gerätesperre einrichten</button>
             <button class="m-3 text-sm underline text-[#25134D] dark:text-sky-100" (click)="skipPasskey()">Später</button>
         }
     }

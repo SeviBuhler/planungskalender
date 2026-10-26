@@ -6,8 +6,22 @@ import { RouterLink } from '@angular/router'
 
 type Step = 'credentials' | 'second-factor' | 'code' | 'offer-passkey';
 
-// Set on a device where the user said "later" to Face ID, so we don't ask after every login
-const PASSKEY_DECLINED_KEY = 'fortwo.passkeyDeclined';
+// When the user said "later" to the device unlock on this device; asked again after 30 days
+const PASSKEY_DECLINED_KEY = 'fortwo.passkeyDeclinedAt';
+const PASSKEY_ASK_AGAIN_MS = 30 * 86400 * 1000;
+
+// Supabase defaults to USB security keys; ask for the device's own unlock instead
+// (Face ID / Touch ID, fingerprint, Windows Hello, device PIN or pattern)
+const DEVICE_UNLOCK_CREATION = {
+  hints: ['client-device'],
+  authenticatorSelection: {
+    authenticatorAttachment: 'platform',
+    userVerification: 'required',
+    residentKey: 'preferred',
+    requireResidentKey: false,
+  },
+} as const;
+const DEVICE_UNLOCK_REQUEST = { hints: ['client-device'], userVerification: 'required' } as const;
 
 @Component({
   selector: 'app-login',
@@ -63,8 +77,8 @@ export class Login implements OnInit {
     const factorId = this.passkeyFactorId();
     if (!factorId) return;
     await this.run(async () => {
-      const result = await this.supabase.client.auth.mfa.webauthn.authenticate({ factorId });
-      if (result.error) throw new Error('Face ID hat nicht geklappt. Versuch es nochmals oder nimm den Code per E-Mail.');
+      const result = await this.supabase.client.auth.mfa.webauthn.authenticate({ factorId }, DEVICE_UNLOCK_REQUEST as never);
+      if (result.error) throw new Error(`Die Gerätesperre hat nicht geklappt (${result.error.message}). Versuch es nochmals oder nimm den Code per E-Mail.`);
       this.router.navigate(['/calendar']);
     });
   }
@@ -101,14 +115,17 @@ export class Login implements OnInit {
 
   async setupPasskey() {
     await this.run(async () => {
-      const result = await this.supabase.client.auth.mfa.webauthn.register({ friendlyName: `${deviceName()} ${new Date().toLocaleString('de-CH')}` });
-      if (result.error) throw new Error('Face ID konnte nicht eingerichtet werden. Du kannst dich weiterhin mit dem E-Mail-Code anmelden.');
+      const result = await this.supabase.client.auth.mfa.webauthn.register(
+        { friendlyName: `${deviceName()} ${new Date().toLocaleString('de-CH')}` },
+        DEVICE_UNLOCK_CREATION as never
+      );
+      if (result.error) throw new Error(`Die Gerätesperre konnte nicht eingerichtet werden (${result.error.message}). Du kannst dich weiterhin mit dem E-Mail-Code anmelden.`);
       this.router.navigate(['/calendar']);
     });
   }
 
   skipPasskey() {
-    try { localStorage.setItem(PASSKEY_DECLINED_KEY, '1'); } catch { /* private mode */ }
+    try { localStorage.setItem(PASSKEY_DECLINED_KEY, String(Date.now())); } catch { /* private mode */ }
     this.router.navigate(['/calendar']);
   }
 
@@ -142,7 +159,7 @@ async function platformAuthenticatorAvailable(): Promise<boolean> {
 }
 
 function passkeyDeclined(): boolean {
-  try { return localStorage.getItem(PASSKEY_DECLINED_KEY) === '1'; } catch { return false; }
+  try { return Date.now() - Number(localStorage.getItem(PASSKEY_DECLINED_KEY) ?? 0) < PASSKEY_ASK_AGAIN_MS; } catch { return false; }
 }
 
 function codeError(error: { message: string; status?: number; name: string }): string {
