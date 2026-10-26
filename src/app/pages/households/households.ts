@@ -2,6 +2,7 @@ import { Component, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { Household, HouseholdModule, HouseholdStore, MODULES } from '../../features/households/household-store';
+import { ConfirmService } from '../../components/confirm/confirm';
 
 function errorMessage(error: unknown): string {
   return typeof error === 'object' && error !== null && 'message' in error
@@ -25,7 +26,7 @@ export class Households {
   newModules = new Set<HouseholdModule>(['finance', 'calendar']);
   inviteCode = '';
 
-  constructor(private store: HouseholdStore) {
+  constructor(private store: HouseholdStore, private confirm: ConfirmService) {
     this.reload();
   }
 
@@ -82,7 +83,7 @@ export class Households {
 
   async leave(household: Household) {
     const last = household.memberCount === 1 ? ' Du bist das letzte Mitglied, der Haushalt wird gelöscht.' : '';
-    if (!confirm(`Haushalt „${household.name}“ verlassen? Deine Finanzpläne darin werden wieder privat.${last}`)) return;
+    if (!(await this.confirm.ask(`Haushalt „${household.name}“ verlassen? Deine geteilten Finanzpläne und Termine darin werden wieder privat.${last}`, 'Verlassen'))) return;
     await this.run(() => this.store.leave(household.id));
   }
 }

@@ -19,6 +19,8 @@ import {
 import { CalendarStore, EventInput } from '../../features/calendar/calendar-store';
 import { CATEGORIES, DEFAULT_TILE, MAX_OCCURRENCES, RECURRENCES, occurrences } from '../../features/calendar/recurrence';
 import { Household, HouseholdStore } from '../../features/households/household-store';
+import { ConfirmService } from '../../components/confirm/confirm';
+import { Select, SelectOption } from '../../components/select/select';
 
 const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 const SWIPE_MIN_PX = 60;
@@ -58,7 +60,7 @@ function errorMessage(error: unknown): string {
 
 @Component({
   selector: 'app-calendar',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, Select],
   templateUrl: './calendar.html',
   styleUrl: './calendar.css',
 })
@@ -66,15 +68,34 @@ export class Calendar {
   readonly weekdays = WEEKDAYS;
   readonly hours = Array.from({ length: 24 }, (_, i) => i);
   readonly maxTiles = MAX_TILES;
-  readonly categories = CATEGORIES;
-  readonly recurrences = RECURRENCES;
+  readonly scopeOptions: SelectOption[] = [
+    { value: 'one', label: 'Nur diesen Termin' },
+    { value: 'following', label: 'Diesen und alle folgenden' },
+  ];
+  readonly recurrenceOptions: SelectOption[] = [
+    { value: 'none', label: 'Nie' },
+    ...RECURRENCES.map((r) => ({ value: r.id, label: r.label })),
+  ];
+  readonly categoryOptions: SelectOption[] = [
+    { value: '', label: 'Keine' },
+    ...CATEGORIES.map((c) => ({ value: c.id, label: c.label })),
+  ];
 
   readonly view = signal<CalendarView>('month');
   readonly date = signal(startOfDay(new Date()));
   readonly events = signal<CalendarEvent[]>([]);
   readonly households = signal<Household[]>([]);
   readonly calendarHouseholds = computed(() => this.households().filter((h) => h.modules.includes('calendar')));
+  readonly visibilityOptions = computed<SelectOption[]>(() => [
+    { value: 'private', label: 'Nur ich' },
+    ...this.calendarHouseholds().map((h) => ({ value: h.id, label: `Haushalt „${h.name}“` })),
+  ]);
   readonly errorText = signal('');
+  // Swipe animation: the page follows the pointer, the next page slides in from the side
+  readonly dragX = signal(0);
+  readonly dragging = signal(false);
+  readonly slideClass = signal('');
+  readonly pageKey = computed(() => `${this.view()}:${this.date().getTime()}`);
   readonly form = signal<EventForm | null>(null);
 
   readonly title = computed(() => {
@@ -114,7 +135,8 @@ export class Calendar {
     public supabase: Supabase,
     private router: Router,
     private store: CalendarStore,
-    private householdStore: HouseholdStore
+    private householdStore: HouseholdStore,
+    private confirm: ConfirmService
   ) {
     this.householdStore.list().then(
       (households) => this.households.set(households),
@@ -167,29 +189,39 @@ export class Calendar {
   }
 
   setView(view: CalendarView) {
+    if (view === this.view()) return;
+    this.slideClass.set('anim-fade-in');
     this.view.set(view);
   }
 
   previous() {
-    this.date.set(shiftDate(this.date(), this.view(), -1));
+    this.slideTo(shiftDate(this.date(), this.view(), -1));
   }
 
   next() {
-    this.date.set(shiftDate(this.date(), this.view(), 1));
+    this.slideTo(shiftDate(this.date(), this.view(), 1));
   }
 
   goToToday() {
-    this.date.set(startOfDay(new Date()));
+    this.slideTo(startOfDay(new Date()));
+  }
+
+  private slideTo(date: Date) {
+    if (date.getTime() === this.date().getTime()) return;
+    this.slideClass.set(date > this.date() ? 'anim-slide-next' : 'anim-slide-prev');
+    this.date.set(date);
   }
 
   openMonth(month: number) {
     if (this.consumeDrag()) return;
+    this.slideClass.set('anim-fade-in');
     this.date.set(new Date(this.date().getFullYear(), month, 1));
     this.view.set('month');
   }
 
   openDay(day: Date) {
     if (this.consumeDrag()) return;
+    this.slideClass.set('anim-fade-in');
     this.date.set(startOfDay(day));
     this.view.set('day');
   }
@@ -199,11 +231,26 @@ export class Calendar {
     this.pointerStart = { x: event.clientX, y: event.clientY };
   }
 
+  onPointerMove(event: PointerEvent) {
+    if (!this.pointerStart) return;
+    const dx = event.clientX - this.pointerStart.x;
+    const dy = event.clientY - this.pointerStart.y;
+    if (!this.dragging()) {
+      if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      this.dragging.set(true);
+      // Keep receiving moves when the mouse leaves the calendar while dragging
+      (event.target as Element | null)?.setPointerCapture?.(event.pointerId);
+    }
+    this.dragX.set(dx);
+  }
+
   onPointerUp(event: PointerEvent) {
     if (!this.pointerStart) return;
     const dx = event.clientX - this.pointerStart.x;
     const dy = event.clientY - this.pointerStart.y;
     this.pointerStart = null;
+    this.dragging.set(false);
+    this.dragX.set(0); // snaps back with a transition unless the page changes
     if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) < Math.abs(dy) * 1.5) return;
     // The click that follows the drag must not open a day or an event
     this.suppressClick = true;
@@ -214,6 +261,8 @@ export class Calendar {
 
   onPointerCancel() {
     this.pointerStart = null;
+    this.dragging.set(false);
+    this.dragX.set(0);
   }
 
   private consumeDrag(): boolean {
@@ -359,7 +408,7 @@ export class Calendar {
     if (!f || !original) return;
     const following = original.seriesId !== null && f.scope === 'following';
     const question = following ? `„${original.title}“ und alle folgenden Termine der Serie löschen?` : `Termin „${original.title}“ löschen?`;
-    if (!confirm(question)) return;
+    if (!(await this.confirm.ask(question, 'Löschen'))) return;
     try {
       if (following) await this.store.deleteSeriesFrom(original.seriesId!, original.start);
       else await this.store.delete(original.id);
