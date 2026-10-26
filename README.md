@@ -16,8 +16,8 @@ Once the server is running, open your browser and navigate to `http://localhost:
 
 Die Finanzplanung speichert ihre Daten in Supabase. Die Tabellen, Zugriffsregeln (RLS) und Funktionen stehen in `supabase/migrations/`. Jede Datei dort einmal im Supabase-Dashboard unter **SQL Editor** ausführen (oder mit der Supabase CLI `supabase db push`).
 
-- `finance_plans`: Finanzpläne mit Besitzer:in. Ohne `household_id` ist ein Plan privat und nur für die Besitzer:in sichtbar. Mit `household_id` sehen und bearbeiten ihn alle Mitglieder des Haushalts. Nur die Besitzer:in kann ihn umbenennen, teilen, wieder privat machen oder löschen.
-- `households` / `household_members`: freiwillige Haushalte mit höchstens zwei Personen. Beim Erstellen oder Bearbeiten eines Plans kann man einen neuen Haushalt anlegen oder mit dem Einladungscode einem bestehenden beitreten. Eine Person kann in mehreren Haushalten sein.
+- `households` / `household_members`: freiwillige Haushalte als übergeordnete Struktur. Jeder Haushalt schaltet Module ein (`modules`: `finance`, `calendar`, später `shopping`). Erstellen, beitreten (Einladungscode), Module wählen und verlassen geht auf der Seite „Haushalte“. Bis zu 50 Mitglieder, eine Person kann in mehreren Haushalten sein.
+- `finance_plans`: Finanzpläne mit Besitzer:in. Ohne `household_id` ist ein Plan privat. Mit `household_id` sehen und bearbeiten ihn alle Mitglieder des Haushalts (sofern das Modul Finanzplanung eingeschaltet ist). Nur die Besitzer:in kann ihn umbenennen, teilen, wieder privat machen oder löschen.
 - `month_budgets`: ein Eintrag pro Plan und Monat, der Monatsplan liegt als JSON in `data`.
 
 ## Code scaffolding

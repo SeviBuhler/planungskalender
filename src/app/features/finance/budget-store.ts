@@ -2,28 +2,12 @@ import { Injectable } from '@angular/core';
 import { Supabase } from '../../services/supabase';
 import { MonthBudget } from './allocate';
 
-const LEGACY_KEY_PREFIX = 'finance:';
-
-export interface Household {
-  id: string;
-  name: string;
-  inviteCode: string;
-  memberCount: number;
-}
-
 // A plan without household is private: only its owner can see it
 export interface FinancePlan {
   id: string;
   name: string;
   ownerId: string;
   householdId: string | null;
-}
-
-interface HouseholdRow {
-  id: string;
-  name: string;
-  invite_code: string;
-  household_members?: { user_id: string }[];
 }
 
 interface PlanRow {
@@ -34,10 +18,6 @@ interface PlanRow {
 }
 
 const PLAN_COLUMNS = 'id, name, owner_id, household_id';
-
-function toHousehold(row: HouseholdRow): Household {
-  return { id: row.id, name: row.name, inviteCode: row.invite_code, memberCount: row.household_members?.length ?? 1 };
-}
 
 function toPlan(row: PlanRow): FinancePlan {
   return { id: row.id, name: row.name, ownerId: row.owner_id, householdId: row.household_id };
@@ -53,27 +33,6 @@ export class BudgetStore {
   async userId(): Promise<string | null> {
     const { data } = await this.supabase.client.auth.getSession();
     return data.session?.user.id ?? null;
-  }
-
-  async listHouseholds(): Promise<Household[]> {
-    const { data, error } = await this.supabase.client
-      .from('households')
-      .select('id, name, invite_code, household_members(user_id)')
-      .order('created_at');
-    if (error) throw error;
-    return (data as HouseholdRow[]).map(toHousehold);
-  }
-
-  async createHousehold(name: string): Promise<Household> {
-    const { data, error } = await this.supabase.client.rpc('create_household', { household_name: name });
-    if (error) throw error;
-    return toHousehold(data as HouseholdRow);
-  }
-
-  async joinHousehold(code: string): Promise<Household> {
-    const { data, error } = await this.supabase.client.rpc('join_household', { code });
-    if (error) throw error;
-    return toHousehold(data as HouseholdRow);
   }
 
   async listPlans(): Promise<FinancePlan[]> {
@@ -133,23 +92,5 @@ export class BudgetStore {
       .from('month_budgets')
       .upsert({ plan_id: planId, month: budget.month, data: budget }, { onConflict: 'plan_id,month' });
     if (error) throw error;
-  }
-
-  // Budgets saved in the browser before the Supabase tables existed
-  loadLegacy(month: string): MonthBudget | null {
-    try {
-      const raw = localStorage.getItem(LEGACY_KEY_PREFIX + month);
-      return raw ? (JSON.parse(raw) as MonthBudget) : null;
-    } catch {
-      return null;
-    }
-  }
-
-  removeLegacy(month: string) {
-    try {
-      localStorage.removeItem(LEGACY_KEY_PREFIX + month);
-    } catch {
-      // storage unavailable: nothing to clean up
-    }
   }
 }

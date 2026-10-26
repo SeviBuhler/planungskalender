@@ -1,4 +1,4 @@
-// Monthly budget allocation, modelled on the "Budget November" sheet of Finanzplanung_2026.xlsx:
+// Monthly budget allocation:
 // 1. planned expenses must be covered, 2. debts are paid in order, 3. savings get what is left.
 
 export interface PlannedExpense {
@@ -124,30 +124,3 @@ export function carryOver(budget: MonthBudget): MonthBudget {
       .filter((s) => s.target > 0),
   };
 }
-
-// Values from the "Budget November" sheet
-export const NOVEMBER_2026: MonthBudget = {
-  month: '2026-11',
-  startBalance: 110,
-  income: 3279,
-  expenses: [
-    { name: 'SBB Abo', amountPerUnit: 270, quantity: 1, note: 'Fixbetrag' },
-    { name: 'Wöchentlicher Einkauf', amountPerUnit: 80, quantity: 4, note: 'ca. 4 Einkäufe' },
-    { name: 'Tägliche Ausgaben', amountPerUnit: 10, quantity: 30, note: 'Max. 10 CHF/Tag' },
-    { name: 'Mietzins', amountPerUnit: 735, quantity: 1, note: 'Fixbetrag' },
-    { name: 'CSS (Krankenkasse)', amountPerUnit: 208, quantity: 1, note: 'Fixbetrag' },
-    { name: 'Swisscom', amountPerUnit: 32, quantity: 1, note: 'Fixbetrag' },
-    { name: 'Sunrise', amountPerUnit: 40, quantity: 1, note: 'Fixbetrag' },
-    { name: 'Europapark', amountPerUnit: 200, quantity: 1, note: 'einmalig' },
-    { name: 'Puffer für Unvorhergesehenes', amountPerUnit: 300, quantity: 1 },
-  ],
-  debts: [
-    { name: 'Skema Abo (Restbetrag)', open: 360 },
-    { name: 'Kreditkarte', open: 2073 },
-    { name: 'Dana', open: 400 },
-  ],
-  savings: [
-    { name: 'Neues Handy', target: 600, desiredRate: 100 },
-    { name: 'Neuer Computer', target: 4000, desiredRate: 200 },
-  ],
-};

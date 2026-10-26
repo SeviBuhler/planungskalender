@@ -1,0 +1,67 @@
+<div class="min-h-screen bg-gray-300 dark:bg-gray-800 p-3 md:p-6 text-sky-950 dark:text-sky-100">
+    <header class="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <p class="font-bold text-3xl md:text-4xl">Haushalte</p>
+        <nav class="flex gap-2">
+            <a class="px-4 py-2 rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100" routerLink="/finance">Finanzen</a>
+            <a class="px-4 py-2 rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100" routerLink="/calendar">Kalender</a>
+        </nav>
+    </header>
+
+    <div class="max-w-3xl mx-auto flex flex-col gap-4">
+        <p class="text-sm">Alles, was du anlegst, gehört erst einmal nur dir. In einem Haushalt teilst du ausgewählte Module mit anderen: Wer Mitglied ist, sieht die Module, die der Haushalt eingeschaltet hat.</p>
+
+        @if (errorText()) {
+            <p class="p-2 rounded bg-red-200 text-red-900 text-sm">{{ errorText() }}</p>
+        }
+
+        @if (loading()) {
+            <p class="text-center">Lade…</p>
+        }
+
+        @for (h of households(); track h.id) {
+            <section class="rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-4 flex flex-col gap-3">
+                <div class="flex flex-wrap items-center gap-2">
+                    <input class="flex-1 min-w-40 p-2 rounded bg-white font-semibold text-lg" [ngModel]="h.name" (change)="rename(h, $any($event.target).value)" aria-label="Name des Haushalts" />
+                    <span class="text-sm">{{ h.memberCount }} {{ h.memberCount === 1 ? 'Mitglied' : 'Mitglieder' }}</span>
+                </div>
+                <div class="flex flex-wrap gap-4 text-sm">
+                    @for (m of modules; track m.id) {
+                        <label class="flex items-center gap-2" [class.opacity-50]="!m.available">
+                            <input type="checkbox" [checked]="h.modules.includes(m.id)" [disabled]="!m.available" (change)="toggleModule(h, m.id)" />
+                            {{ m.label }}@if (!m.available) { <span class="text-xs">(kommt später)</span> }
+                        </label>
+                    }
+                </div>
+                <div class="flex flex-wrap items-center justify-between gap-2 text-sm">
+                    <span>Einladungscode: <b class="font-mono tracking-widest">{{ h.inviteCode }}</b></span>
+                    <button class="px-3 py-1 rounded-lg text-red-700 hover:bg-red-100" (click)="leave(h)">Verlassen</button>
+                </div>
+            </section>
+        } @empty {
+            @if (!loading()) {
+                <p class="text-sm italic">Du bist noch in keinem Haushalt.</p>
+            }
+        }
+
+        <div class="grid gap-4 md:grid-cols-2">
+            <section class="rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-4 flex flex-col gap-3">
+                <h2 class="font-semibold text-lg">Neuer Haushalt</h2>
+                <input class="p-2 rounded bg-white" [(ngModel)]="newName" placeholder="Name, z. B. Wir zwei" />
+                <div class="flex flex-wrap gap-4 text-sm">
+                    @for (m of modules; track m.id) {
+                        <label class="flex items-center gap-2" [class.opacity-50]="!m.available">
+                            <input type="checkbox" [checked]="newModules.has(m.id)" [disabled]="!m.available" (change)="toggleNewModule(m.id)" />
+                            {{ m.label }}
+                        </label>
+                    }
+                </div>
+                <button class="p-2 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white" (click)="create()">Haushalt erstellen</button>
+            </section>
+            <section class="rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-4 flex flex-col gap-3">
+                <h2 class="font-semibold text-lg">Haushalt beitreten</h2>
+                <input class="p-2 rounded bg-white uppercase" [(ngModel)]="inviteCode" placeholder="Einladungscode" />
+                <button class="p-2 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white" (click)="join()">Beitreten</button>
+            </section>
+        </div>
+    </div>
+</div>

@@ -13,5 +13,10 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/finance/finance').then((m) => m.Finance),
         canActivate: [authGuard]
     },
+    {
+        path: 'households',
+        loadComponent: () => import('./pages/households/households').then((m) => m.Households),
+        canActivate: [authGuard]
+    },
     { path: '', redirectTo: 'login', pathMatch: 'full' }
 ];
