@@ -1,7 +1,10 @@
 <div class="min-h-screen bg-gray-300 dark:bg-gray-800 p-3 md:p-6 text-sky-950 dark:text-sky-100">
     <header class="flex flex-wrap items-center justify-between gap-3 mb-4">
         <p class="font-bold text-3xl md:text-4xl">Finanzplanung</p>
-        <a class="px-4 py-2 rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100" routerLink="/calendar">Kalender</a>
+        <nav class="flex gap-2">
+            <a class="px-4 py-2 rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100" routerLink="/households">Haushalte</a>
+            <a class="px-4 py-2 rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100" routerLink="/calendar">Kalender</a>
+        </nav>
     </header>
 
     @switch (state()) {
@@ -15,7 +18,7 @@
         <p class="text-center mt-8">Lade…</p>
     }
     @case ('empty') {
-        <p class="max-w-xl mx-auto mb-4 text-sm">Du hast noch keinen Finanzplan. Ein Plan ist entweder privat oder gehört zu einem Haushalt, den du mit einer zweiten Person teilst.</p>
+        <p class="max-w-xl mx-auto mb-4 text-sm">Du hast noch keinen Finanzplan. Ein Plan ist entweder privat oder gehört zu einem deiner Haushalte.</p>
         <section class="max-w-xl mx-auto mb-4 rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-4 md:p-6 flex flex-col gap-4">
             <h2 class="font-semibold text-xl">{{ panel() === 'new' ? 'Neuer Finanzplan' : 'Plan bearbeiten' }}</h2>
             <label class="flex flex-col text-sm">Name
@@ -24,21 +27,11 @@
             <fieldset class="flex flex-col gap-2 text-sm">
                 <legend class="mb-1">Wer sieht den Plan?</legend>
                 <label class="flex items-center gap-2"><input type="radio" name="household" value="private" [(ngModel)]="householdChoice" /> Nur ich (privat)</label>
-                @for (h of households(); track h.id) {
-                    <label class="flex items-center gap-2"><input type="radio" name="household" [value]="h.id" [(ngModel)]="householdChoice" /> Haushalt „{{ h.name }}“ ({{ h.memberCount }} {{ h.memberCount === 1 ? 'Person' : 'Personen' }})</label>
+                @for (h of financeHouseholds(); track h.id) {
+                    <label class="flex items-center gap-2"><input type="radio" name="household" [value]="h.id" [(ngModel)]="householdChoice" /> Haushalt „{{ h.name }}“ ({{ h.memberCount }} {{ h.memberCount === 1 ? 'Mitglied' : 'Mitglieder' }})</label>
                 }
-                <label class="flex items-center gap-2"><input type="radio" name="household" value="new" [(ngModel)]="householdChoice" /> Neuen Haushalt erstellen</label>
-                @if (householdChoice === 'new') {
-                    <input class="ml-6 p-2 rounded bg-white" [(ngModel)]="newHouseholdName" placeholder="Name des Haushalts, z. B. Wir zwei" />
-                }
-                <label class="flex items-center gap-2"><input type="radio" name="household" value="join" [(ngModel)]="householdChoice" /> Bestehendem Haushalt mit Einladungscode beitreten</label>
-                @if (householdChoice === 'join') {
-                    <input class="ml-6 p-2 rounded bg-white uppercase" [(ngModel)]="inviteCode" placeholder="Einladungscode" />
-                }
+                <a class="text-indigo-700 underline" routerLink="/households">Haushalte verwalten</a>
             </fieldset>
-            @if (panel() === 'new') {
-                <label class="flex items-center gap-2 text-sm"><input type="checkbox" [(ngModel)]="useTemplate" /> Mit den Werten aus der Excel (November 2026) starten</label>
-            }
             @if (errorText()) {
                 <p class="p-2 rounded bg-red-200 text-red-900 text-sm">{{ errorText() }}</p>
             }
@@ -72,9 +65,6 @@
     <p class="mb-4 text-sm">
         @if (planHousehold(); as h) {
             Geteilt im Haushalt „{{ h.name }}“.
-            @if (h.memberCount < 2) {
-                Einladungscode für die zweite Person: <b class="font-mono tracking-widest">{{ h.inviteCode }}</b>
-            }
         } @else {
             Privat, nur du siehst diesen Plan.
         }
@@ -88,21 +78,11 @@
             <fieldset class="flex flex-col gap-2 text-sm">
                 <legend class="mb-1">Wer sieht den Plan?</legend>
                 <label class="flex items-center gap-2"><input type="radio" name="household" value="private" [(ngModel)]="householdChoice" /> Nur ich (privat)</label>
-                @for (h of households(); track h.id) {
-                    <label class="flex items-center gap-2"><input type="radio" name="household" [value]="h.id" [(ngModel)]="householdChoice" /> Haushalt „{{ h.name }}“ ({{ h.memberCount }} {{ h.memberCount === 1 ? 'Person' : 'Personen' }})</label>
+                @for (h of financeHouseholds(); track h.id) {
+                    <label class="flex items-center gap-2"><input type="radio" name="household" [value]="h.id" [(ngModel)]="householdChoice" /> Haushalt „{{ h.name }}“ ({{ h.memberCount }} {{ h.memberCount === 1 ? 'Mitglied' : 'Mitglieder' }})</label>
                 }
-                <label class="flex items-center gap-2"><input type="radio" name="household" value="new" [(ngModel)]="householdChoice" /> Neuen Haushalt erstellen</label>
-                @if (householdChoice === 'new') {
-                    <input class="ml-6 p-2 rounded bg-white" [(ngModel)]="newHouseholdName" placeholder="Name des Haushalts, z. B. Wir zwei" />
-                }
-                <label class="flex items-center gap-2"><input type="radio" name="household" value="join" [(ngModel)]="householdChoice" /> Bestehendem Haushalt mit Einladungscode beitreten</label>
-                @if (householdChoice === 'join') {
-                    <input class="ml-6 p-2 rounded bg-white uppercase" [(ngModel)]="inviteCode" placeholder="Einladungscode" />
-                }
+                <a class="text-indigo-700 underline" routerLink="/households">Haushalte verwalten</a>
             </fieldset>
-            @if (panel() === 'new') {
-                <label class="flex items-center gap-2 text-sm"><input type="checkbox" [(ngModel)]="useTemplate" /> Mit den Werten aus der Excel (November 2026) starten</label>
-            }
             @if (errorText()) {
                 <p class="p-2 rounded bg-red-200 text-red-900 text-sm">{{ errorText() }}</p>
             }

@@ -1,43 +1,58 @@
-import { MonthBudget, NOVEMBER_2026, allocate, carryOver, nextMonth } from './allocate';
+import { MonthBudget, allocate, carryOver, nextMonth } from './allocate';
+
+const BUDGET: MonthBudget = {
+  month: '2026-11',
+  startBalance: 200,
+  income: 3000,
+  expenses: [
+    { name: 'Miete', amountPerUnit: 1000, quantity: 1 },
+    { name: 'Einkauf', amountPerUnit: 100, quantity: 4 },
+  ],
+  debts: [
+    { name: 'Rechnung', open: 500 },
+    { name: 'Kreditkarte', open: 1500 },
+    { name: 'Privat', open: 300 },
+  ],
+  savings: [
+    { name: 'Handy', target: 600, desiredRate: 100 },
+    { name: 'Computer', target: 2000, desiredRate: 200 },
+  ],
+};
 
 describe('allocate', () => {
-  it('matches the numbers of the "Budget November" sheet', () => {
-    const result = allocate(NOVEMBER_2026);
+  it('covers planned expenses first, then pays debts in order', () => {
+    const result = allocate(BUDGET);
 
-    expect(result.totalAvailable).toBe(3389);
-    expect(result.plannedTotal).toBe(2405);
-    expect(result.availableForDebtsAndSavings).toBe(984);
-    expect(result.debts.map((d) => d.payment)).toEqual([360, 624, 0]);
+    expect(result.totalAvailable).toBe(3200);
+    expect(result.plannedTotal).toBe(1400);
+    expect(result.availableForDebtsAndSavings).toBe(1800);
+    expect(result.debts.map((d) => d.payment)).toEqual([500, 1300, 0]);
     expect(result.savings.map((s) => s.rate)).toEqual([0, 0]);
     expect(result.endBalance).toBe(0);
-    expect(result.remainingDebt).toBe(1849);
+    expect(result.remainingDebt).toBe(500);
     expect(result.plannedCovered).toBe(true);
   });
 
   it('gives savings the desired rate once all debts are paid', () => {
-    const budget: MonthBudget = {
-      ...NOVEMBER_2026,
-      debts: [{ name: 'Dana', open: 400 }],
-    };
-    const result = allocate(budget);
+    const result = allocate({ ...BUDGET, debts: [{ name: 'Privat', open: 300 }] });
 
-    expect(result.debtTotal).toBe(400);
+    expect(result.debtTotal).toBe(300);
     expect(result.savings.map((s) => s.rate)).toEqual([100, 200]);
-    expect(result.endBalance).toBe(984 - 400 - 300);
+    expect(result.endBalance).toBe(1800 - 300 - 300);
   });
 
   it('pays nothing extra when planned expenses are not covered', () => {
-    const result = allocate({ ...NOVEMBER_2026, income: 1000 });
+    const result = allocate({ ...BUDGET, income: 1000 });
 
     expect(result.plannedCovered).toBe(false);
     expect(result.debtTotal).toBe(0);
     expect(result.savingsTotal).toBe(0);
-    expect(result.endBalance).toBe(1110 - 2405);
+    expect(result.endBalance).toBe(1200 - 1400);
   });
 
   it('never saves more than the remaining target', () => {
     const result = allocate({
-      ...NOVEMBER_2026,
+      ...BUDGET,
       debts: [],
       savings: [{ name: 'Handy', target: 50, desiredRate: 100 }],
     });
@@ -48,17 +63,17 @@ describe('allocate', () => {
 
 describe('carryOver', () => {
   it('starts the next month from the remaining balance and open amounts', () => {
-    const december = carryOver(NOVEMBER_2026);
+    const next = carryOver(BUDGET);
 
-    expect(december.month).toBe('2026-12');
-    expect(december.startBalance).toBe(0);
-    expect(december.income).toBe(0);
-    expect(december.debts).toEqual([
-      { name: 'Kreditkarte', open: 1449 },
-      { name: 'Dana', open: 400 },
+    expect(next.month).toBe('2026-12');
+    expect(next.startBalance).toBe(0);
+    expect(next.income).toBe(0);
+    expect(next.debts).toEqual([
+      { name: 'Kreditkarte', open: 200 },
+      { name: 'Privat', open: 300 },
     ]);
-    expect(december.savings.map((s) => s.target)).toEqual([600, 4000]);
-    expect(december.expenses).not.toBe(NOVEMBER_2026.expenses);
+    expect(next.savings.map((s) => s.target)).toEqual([600, 2000]);
+    expect(next.expenses).not.toBe(BUDGET.expenses);
   });
 
   it('rolls over the year', () => {
