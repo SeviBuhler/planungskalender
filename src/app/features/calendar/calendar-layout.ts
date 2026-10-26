@@ -1,6 +1,8 @@
 // Pure date and layout helpers for the calendar views (all in local time)
 
 export type CalendarView = 'year' | 'month' | 'day';
+export type Category = 'work' | 'private' | 'family' | 'health' | 'leisure' | 'other';
+export type Recurrence = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly';
 
 export interface CalendarEvent {
   id: string;
@@ -11,6 +13,10 @@ export interface CalendarEvent {
   allDay: boolean;
   ownerId: string;
   householdId: string | null;
+  category: Category | null;
+  seriesId: string | null; // occurrences of one repeating event share this id
+  recurrence: Recurrence | null;
+  recurrenceUntil: string | null; // last day of the series, YYYY-MM-DD
 }
 
 export interface CalendarDay {

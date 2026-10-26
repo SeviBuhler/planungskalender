@@ -5,6 +5,8 @@ import { Supabase } from '../../services/supabase';
 import {
   CalendarEvent,
   CalendarView,
+  Category,
+  Recurrence,
   addDays,
   buildMonthGrid,
   eventsOnDay,
@@ -14,7 +16,8 @@ import {
   startOfDay,
   visibleRange,
 } from '../../features/calendar/calendar-layout';
-import { CalendarStore } from '../../features/calendar/calendar-store';
+import { CalendarStore, EventInput } from '../../features/calendar/calendar-store';
+import { CATEGORIES, DEFAULT_TILE, MAX_OCCURRENCES, RECURRENCES, occurrences } from '../../features/calendar/recurrence';
 import { Household, HouseholdStore } from '../../features/households/household-store';
 
 const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
@@ -22,7 +25,7 @@ const SWIPE_MIN_PX = 60;
 const MAX_TILES = 3;
 
 interface EventForm {
-  id: string | null;
+  original: CalendarEvent | null; // the event being edited
   title: string;
   description: string;
   allDay: boolean;
@@ -31,6 +34,10 @@ interface EventForm {
   endDate: string;
   endTime: string;
   householdChoice: string; // 'private' or a household id
+  category: Category | '';
+  recurrence: Recurrence | 'none';
+  recurrenceUntil: string;
+  scope: 'one' | 'following'; // which occurrences of a series a change applies to
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -59,6 +66,8 @@ export class Calendar {
   readonly weekdays = WEEKDAYS;
   readonly hours = Array.from({ length: 24 }, (_, i) => i);
   readonly maxTiles = MAX_TILES;
+  readonly categories = CATEGORIES;
+  readonly recurrences = RECURRENCES;
 
   readonly view = signal<CalendarView>('month');
   readonly date = signal(startOfDay(new Date()));
@@ -140,6 +149,15 @@ export class Calendar {
     return event.allDay ? 'Ganztägig' : `${timeInput(event.start)}–${timeInput(event.end)}`;
   }
 
+  tileClass(event: CalendarEvent): string {
+    return CATEGORIES.find((c) => c.id === event.category)?.tile ?? DEFAULT_TILE;
+  }
+
+  // Recurrence can be set for new events, single events and "this and following"
+  showRecurrence(f: EventForm): boolean {
+    return !f.original?.seriesId || f.scope === 'following';
+  }
+
   householdName(event: CalendarEvent): string | null {
     return this.households().find((h) => h.id === event.householdId)?.name ?? null;
   }
@@ -208,7 +226,7 @@ export class Calendar {
     const to = new Date(from.getTime() + 60 * 60 * 1000);
     this.errorText.set('');
     this.form.set({
-      id: null,
+      original: null,
       title: '',
       description: '',
       allDay: false,
@@ -217,6 +235,10 @@ export class Calendar {
       endDate: dateInput(to),
       endTime: timeInput(to),
       householdChoice: 'private',
+      category: '',
+      recurrence: 'none',
+      recurrenceUntil: '',
+      scope: 'one',
     });
   }
 
@@ -232,7 +254,7 @@ export class Calendar {
     const lastDay = event.allDay ? addDays(event.end, -1) : event.end;
     this.errorText.set('');
     this.form.set({
-      id: event.id,
+      original: event,
       title: event.title,
       description: event.description ?? '',
       allDay: event.allDay,
@@ -241,11 +263,27 @@ export class Calendar {
       endDate: dateInput(lastDay),
       endTime: timeInput(event.end),
       householdChoice: event.householdId ?? 'private',
+      category: event.category ?? '',
+      recurrence: event.recurrence ?? 'none',
+      recurrenceUntil: event.recurrenceUntil ?? '',
+      scope: 'one',
     });
   }
 
   patchForm(changes: Partial<EventForm>) {
     this.form.update((f) => (f ? { ...f, ...changes } : f));
+  }
+
+  setRecurrence(recurrence: Recurrence | 'none') {
+    const f = this.form();
+    if (!f) return;
+    const rule = RECURRENCES.find((r) => r.id === recurrence);
+    let until = f.recurrenceUntil;
+    if (rule && !until) {
+      const start = fromInputs(f.startDate, '00:00');
+      until = dateInput(new Date(start.getFullYear(), start.getMonth() + rule.defaultMonths, start.getDate()));
+    }
+    this.patchForm({ recurrence, recurrenceUntil: until });
   }
 
   closeForm() {
@@ -266,17 +304,48 @@ export class Calendar {
       this.errorText.set('Das Ende liegt vor dem Beginn');
       return;
     }
-    const input = {
+    const base = {
       title: f.title.trim(),
       description: f.description.trim() || null,
-      start,
-      end,
       allDay: f.allDay,
       householdId: f.householdChoice === 'private' ? null : f.householdChoice,
+      category: f.category || null,
     };
+    const original = f.original;
+    const repeat = this.showRecurrence(f) && f.recurrence !== 'none' ? f.recurrence : null;
+    // A single change keeps the occurrence in its series; everything else rebuilds the events
+    const rebuild = !original || (original.seriesId ? f.scope === 'following' : repeat !== null);
+
+    let inputs: EventInput[];
+    if (!rebuild) {
+      inputs = [{
+        ...base, start, end,
+        seriesId: original.seriesId, recurrence: original.recurrence, recurrenceUntil: original.recurrenceUntil,
+      }];
+    } else if (repeat) {
+      if (!f.recurrenceUntil || fromInputs(f.recurrenceUntil, '00:00') < startOfDay(start)) {
+        this.errorText.set('Das Wiederholungsende liegt vor dem Beginn');
+        return;
+      }
+      const list = occurrences(start, end, repeat, fromInputs(f.recurrenceUntil, '00:00'));
+      if (!list) {
+        this.errorText.set(`Höchstens ${MAX_OCCURRENCES} Wiederholungen möglich`);
+        return;
+      }
+      const seriesId = original?.seriesId ?? crypto.randomUUID();
+      inputs = list.map((o) => ({ ...base, ...o, seriesId, recurrence: repeat, recurrenceUntil: f.recurrenceUntil }));
+    } else {
+      inputs = [{ ...base, start, end, seriesId: null, recurrence: null, recurrenceUntil: null }];
+    }
+
     try {
-      if (f.id) await this.store.update(f.id, input);
-      else await this.store.create(input);
+      if (!rebuild) {
+        await this.store.update(original!.id, inputs[0]);
+      } else {
+        if (original?.seriesId) await this.store.deleteSeriesFrom(original.seriesId, original.start);
+        else if (original) await this.store.delete(original.id);
+        await this.store.create(inputs);
+      }
       this.closeForm();
       await this.reload();
     } catch (error) {
@@ -286,9 +355,14 @@ export class Calendar {
 
   async deleteEvent() {
     const f = this.form();
-    if (!f?.id || !confirm(`Termin „${f.title}“ löschen?`)) return;
+    const original = f?.original;
+    if (!f || !original) return;
+    const following = original.seriesId !== null && f.scope === 'following';
+    const question = following ? `„${original.title}“ und alle folgenden Termine der Serie löschen?` : `Termin „${original.title}“ löschen?`;
+    if (!confirm(question)) return;
     try {
-      await this.store.delete(f.id);
+      if (following) await this.store.deleteSeriesFrom(original.seriesId!, original.start);
+      else await this.store.delete(original.id);
       this.closeForm();
       await this.reload();
     } catch (error) {
