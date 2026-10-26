@@ -24,6 +24,8 @@ import { Select, SelectOption } from '../../components/select/select';
 
 const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 const SWIPE_MIN_PX = 60;
+const FLICK_MIN_PX = 20;
+const FLICK_MIN_SPEED = 0.4; // px per ms
 const MAX_TILES = 3;
 
 interface EventForm {
@@ -50,6 +52,14 @@ function fromInputs(date: string, time: string): Date {
   const [y, m, d] = date.split('-').map(Number);
   const [h, min] = (time || '00:00').split(':').map(Number);
   return new Date(y, m - 1, d, h, min);
+}
+
+function monthsOfYear(year: number) {
+  return Array.from({ length: 12 }, (_, month) => ({
+    month,
+    label: new Date(2000, month, 1).toLocaleDateString('de-CH', { month: 'long' }),
+    days: buildMonthGrid(year, month),
+  }));
 }
 
 function errorMessage(error: unknown): string {
@@ -91,11 +101,14 @@ export class Calendar {
     ...this.calendarHouseholds().map((h) => ({ value: h.id, label: `Haushalt „${h.name}“` })),
   ]);
   readonly errorText = signal('');
-  // Swipe animation: the page follows the pointer, the next page slides in from the side
+  // Swipe carousel: previous, current and next page sit side by side and the track follows the
+  // pointer. Changing the page moves the track by one page width (-100% shows the current page).
   readonly dragX = signal(0);
   readonly dragging = signal(false);
-  readonly slideClass = signal('');
-  readonly pageKey = computed(() => `${this.view()}:${this.date().getTime()}`);
+  readonly trackShift = signal(0); // extra percent, used to start the slide from where the old page is
+  readonly trackAnimated = signal(true);
+  readonly trackTransform = computed(() => `translateX(calc(${this.trackShift() - 100}% + ${this.dragX()}px))`);
+  readonly fadeClass = signal('');
   readonly form = signal<EventForm | null>(null);
 
   readonly title = computed(() => {
@@ -111,16 +124,26 @@ export class Calendar {
   });
 
   readonly monthDays = computed(() => buildMonthGrid(this.date().getFullYear(), this.date().getMonth()));
-  readonly yearMonths = computed(() =>
-    Array.from({ length: 12 }, (_, month) => ({
-      month,
-      label: new Date(2000, month, 1).toLocaleDateString('de-CH', { month: 'long' }),
-      days: buildMonthGrid(this.date().getFullYear(), month),
-    }))
-  );
+  readonly yearMonths = computed(() => monthsOfYear(this.date().getFullYear()));
   readonly dayEvents = computed(() => eventsOnDay(this.visibleEvents(), this.date()));
   readonly allDayEvents = computed(() => this.dayEvents().filter((e) => e.allDay));
   readonly positionedEvents = computed(() => layoutDay(this.visibleEvents(), this.date()));
+
+  readonly pages = computed(() => {
+    const view = this.view();
+    const events = this.visibleEvents();
+    return ([-1, 0, 1] as const).map((offset) => {
+      const date = offset === 0 ? this.date() : shiftDate(this.date(), view, offset);
+      return {
+        offset,
+        key: `${view}:${date.getTime()}`,
+        monthDays: view === 'month' ? buildMonthGrid(date.getFullYear(), date.getMonth()) : [],
+        yearMonths: view === 'year' ? monthsOfYear(date.getFullYear()) : [],
+        allDay: view === 'day' ? eventsOnDay(events, date).filter((e) => e.allDay) : [],
+        positioned: view === 'day' ? layoutDay(events, date) : [],
+      };
+    });
+  });
 
   // Shared events of households that switched the calendar module off stay hidden
   private readonly visibleEvents = computed(() =>
@@ -128,6 +151,7 @@ export class Calendar {
   );
 
   private pointerStart: { x: number; y: number } | null = null;
+  private lastMove: { x: number; time: number; speed: number } | null = null;
   private suppressClick = false;
   private loadToken = 0;
 
@@ -150,7 +174,9 @@ export class Calendar {
   private async loadEvents(date: Date, view: CalendarView) {
     if (view === 'year') return; // the year view only navigates
     const token = ++this.loadToken;
-    const { from, to } = visibleRange(date, view);
+    // Also load the neighbouring pages, they are visible while swiping
+    const from = visibleRange(shiftDate(date, view, -1), view).from;
+    const to = visibleRange(shiftDate(date, view, 1), view).to;
     try {
       const events = await this.store.listRange(from, to);
       if (token === this.loadToken) this.events.set(events);
@@ -190,38 +216,54 @@ export class Calendar {
 
   setView(view: CalendarView) {
     if (view === this.view()) return;
-    this.slideClass.set('anim-fade-in');
+    this.fadeClass.set('anim-fade-in');
     this.view.set(view);
   }
 
   previous() {
-    this.slideTo(shiftDate(this.date(), this.view(), -1));
+    this.slide(-1);
   }
 
   next() {
-    this.slideTo(shiftDate(this.date(), this.view(), 1));
+    this.slide(1);
   }
 
   goToToday() {
-    this.slideTo(startOfDay(new Date()));
+    const today = startOfDay(new Date());
+    if (today.getTime() === this.date().getTime()) return;
+    this.fadeClass.set('anim-fade-in');
+    this.date.set(today);
   }
 
-  private slideTo(date: Date) {
-    if (date.getTime() === this.date().getTime()) return;
-    this.slideClass.set(date > this.date() ? 'anim-slide-next' : 'anim-slide-prev');
-    this.date.set(date);
+  // Switches the page right away and lets the track glide from where the old page is shown
+  // (including the distance the finger already dragged) to the new page
+  private slide(direction: -1 | 1) {
+    const dragged = this.dragX();
+    this.fadeClass.set('');
+    this.trackAnimated.set(false);
+    this.date.set(shiftDate(this.date(), this.view(), direction));
+    this.trackShift.set(direction * 100);
+    this.dragX.set(dragged);
+    // Two frames: the jump without transition is painted before the glide starts
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        this.trackAnimated.set(true);
+        this.trackShift.set(0);
+        this.dragX.set(0);
+      })
+    );
   }
 
   openMonth(month: number) {
     if (this.consumeDrag()) return;
-    this.slideClass.set('anim-fade-in');
+    this.fadeClass.set('anim-fade-in');
     this.date.set(new Date(this.date().getFullYear(), month, 1));
     this.view.set('month');
   }
 
   openDay(day: Date) {
     if (this.consumeDrag()) return;
-    this.slideClass.set('anim-fade-in');
+    this.fadeClass.set('anim-fade-in');
     this.date.set(startOfDay(day));
     this.view.set('day');
   }
@@ -229,15 +271,21 @@ export class Calendar {
   // Swipe on touch screens and drag with the mouse: left = forward, right = back
   onPointerDown(event: PointerEvent) {
     this.pointerStart = { x: event.clientX, y: event.clientY };
+    this.lastMove = { x: event.clientX, time: event.timeStamp, speed: 0 };
   }
 
   onPointerMove(event: PointerEvent) {
     if (!this.pointerStart) return;
     const dx = event.clientX - this.pointerStart.x;
     const dy = event.clientY - this.pointerStart.y;
+    if (this.lastMove && event.timeStamp > this.lastMove.time) {
+      const speed = (event.clientX - this.lastMove.x) / (event.timeStamp - this.lastMove.time);
+      this.lastMove = { x: event.clientX, time: event.timeStamp, speed };
+    }
     if (!this.dragging()) {
       if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
       this.dragging.set(true);
+      this.trackAnimated.set(false);
       // Keep receiving moves when the mouse leaves the calendar while dragging
       (event.target as Element | null)?.setPointerCapture?.(event.pointerId);
     }
@@ -248,20 +296,34 @@ export class Calendar {
     if (!this.pointerStart) return;
     const dx = event.clientX - this.pointerStart.x;
     const dy = event.clientY - this.pointerStart.y;
+    const speed = this.lastMove?.speed ?? 0;
     this.pointerStart = null;
+    this.lastMove = null;
     this.dragging.set(false);
-    this.dragX.set(0); // snaps back with a transition unless the page changes
-    if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    const horizontal = Math.abs(dx) >= Math.abs(dy) * 1.5;
+    // A long drag or a quick flick in the same direction changes the page
+    const flick = Math.abs(dx) >= FLICK_MIN_PX && Math.abs(speed) >= FLICK_MIN_SPEED && Math.sign(speed) === Math.sign(dx);
+    if (!horizontal || (Math.abs(dx) < SWIPE_MIN_PX && !flick)) {
+      this.snapBack();
+      return;
+    }
     // The click that follows the drag must not open a day or an event
     this.suppressClick = true;
     setTimeout(() => (this.suppressClick = false));
+    this.dragX.set(dx);
     if (dx < 0) this.next();
     else this.previous();
   }
 
   onPointerCancel() {
     this.pointerStart = null;
+    this.lastMove = null;
     this.dragging.set(false);
+    this.snapBack();
+  }
+
+  private snapBack() {
+    this.trackAnimated.set(true);
     this.dragX.set(0);
   }
 
