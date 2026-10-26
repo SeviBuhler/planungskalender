@@ -6,6 +6,10 @@ import { RouterLink } from '@angular/router'
 
 type Step = 'credentials' | 'second-factor' | 'code' | 'offer-passkey';
 
+// Supabase's hosted projects don't support WebAuthn as MFA factor yet ("Enabling of MFA with WebAuthn
+// not currently supported"). Switch this on once they do; until then the mail code is the second step.
+const DEVICE_UNLOCK_ENABLED = false;
+
 // When the user said "later" to the device unlock on this device; asked again after 30 days
 const PASSKEY_DECLINED_KEY = 'fortwo.passkeyDeclinedAt';
 const PASSKEY_ASK_AGAIN_MS = 30 * 86400 * 1000;
@@ -44,7 +48,7 @@ export class Login implements OnInit {
   constructor(public supabase: Supabase, private router: Router) {}
 
   async ngOnInit() {
-    this.passkeySupported.set(await platformAuthenticatorAvailable());
+    this.passkeySupported.set(DEVICE_UNLOCK_ENABLED && await platformAuthenticatorAvailable());
     const state = await this.supabase.trust();
     if (state === 'trusted') {
       this.router.navigate(['/calendar']);
