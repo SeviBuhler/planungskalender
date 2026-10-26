@@ -5,6 +5,7 @@ import { Shopping } from './shopping';
 import { ShoppingItem, ShoppingList, ShoppingStore } from '../../features/shopping/shopping-store';
 import { Household, HouseholdStore } from '../../features/households/household-store';
 import { ConfirmService } from '../../components/confirm/confirm';
+import { Product, ProductSearch } from '../../features/shopping/product-search';
 
 const ME = 'user-a';
 
@@ -37,8 +38,11 @@ class FakeShoppingStore {
     this.items = this.items.filter((i) => i.listId !== id);
   }
   async listItems(listId: string) { return this.items.filter((i) => i.listId === listId).map((i) => ({ ...i })); }
-  async addItem(listId: string, name: string, quantity: string | null) {
-    const item = { id: `i${this.nextId++}`, listId, name, quantity, checked: false, createdAt: String(this.clock++), checkedAt: null };
+  async addItem(listId: string, name: string, quantity: string | null, product: { code: string; imageUrl: string | null } | null = null) {
+    const item = {
+      id: `i${this.nextId++}`, listId, name, quantity, checked: false, createdAt: String(this.clock++), checkedAt: null,
+      productCode: product?.code ?? null, imageUrl: product?.imageUrl ?? null,
+    };
     this.items.push(item);
     return { ...item };
   }
@@ -47,7 +51,8 @@ class FakeShoppingStore {
       this.failNextUpdate = false;
       throw new Error('offline');
     }
-    this.items = this.items.map((i) => (i.id === id ? { ...i, ...changes } : i));
+    const product = changes.name !== undefined ? { productCode: null, imageUrl: null } : {};
+    this.items = this.items.map((i) => (i.id === id ? { ...i, ...changes, ...product } : i));
   }
   async deleteItem(id: string) { this.items = this.items.filter((i) => i.id !== id); }
   async deleteChecked(listId: string) { this.items = this.items.filter((i) => i.listId !== listId || !i.checked); }
@@ -58,8 +63,25 @@ class FakeShoppingStore {
   }
 }
 
+const VOLLMILCH: Product = {
+  code: '7613404110285',
+  name: 'Vollmilch',
+  brand: 'Migros',
+  quantity: '1 l',
+  imageUrl: 'https://images.openfoodfacts.org/images/products/761/340/411/0285/front_de.3.200.jpg',
+};
+
+class FakeProductSearch {
+  terms: string[] = [];
+  async search(term: string) {
+    this.terms.push(term);
+    return term.toLowerCase().startsWith('mil') ? [VOLLMILCH] : [];
+  }
+}
+
 describe('Shopping', () => {
   let store: FakeShoppingStore;
+  let products: FakeProductSearch;
   let households: FakeHouseholdStore;
   let fixture: ComponentFixture<Shopping>;
   let component: Shopping;
@@ -71,6 +93,7 @@ describe('Shopping', () => {
         provideRouter([]),
         { provide: ShoppingStore, useValue: store },
         { provide: HouseholdStore, useValue: households },
+        { provide: ProductSearch, useValue: products },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(Shopping);
@@ -88,6 +111,7 @@ describe('Shopping', () => {
     localStorage.clear();
     store = new FakeShoppingStore();
     households = new FakeHouseholdStore();
+    products = new FakeProductSearch();
   });
 
   it('asks for a first list when there is none', async () => {
@@ -175,7 +199,7 @@ describe('Shopping', () => {
     await create();
     vi.useFakeTimers();
     try {
-      store.items.push({ id: 'x', listId: 'l1', name: 'Kaffee', quantity: null, checked: false, createdAt: '9', checkedAt: null });
+      store.items.push({ id: 'x', listId: 'l1', name: 'Kaffee', quantity: null, checked: false, createdAt: '9', checkedAt: null, productCode: null, imageUrl: null });
       store.listeners.get('l1')!();
       await vi.advanceTimersByTimeAsync(200);
       expect(component.openItems().map((i) => i.name)).toEqual(['Kaffee']);
@@ -194,5 +218,48 @@ describe('Shopping', () => {
     await component.saveSettings();
     expect(component.listHousehold()?.name).toBe('WG');
     expect(store.lists[0].householdId).toBe('h1');
+  });
+
+  it('suggests own items and Open Food Facts products while typing', async () => {
+    store.lists = [{ id: 'l1', name: 'Einkauf', ownerId: ME, householdId: null }];
+    await create();
+    component.suggestions.set(['Milchreis', 'Brot']);
+    vi.useFakeTimers();
+    try {
+      component.onNameInput('mi');
+      expect(component.suggestionRows()).toEqual([{ kind: 'own', name: 'Milchreis' }]);
+      component.onNameInput('mil');
+      component.onNameInput('milc');
+      await vi.advanceTimersByTimeAsync(500);
+      // Only the last term reaches the product database
+      expect(products.terms).toEqual(['milc']);
+      expect(component.suggestionRows().map((r) => r.kind)).toEqual(['own', 'product']);
+      expect(component.searching()).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    component.newQuantity = '2';
+    component.onNameKeydown(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+    component.onNameKeydown(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+    component.onNameKeydown(new KeyboardEvent('keydown', { key: 'Enter' }));
+    await fixture.whenStable();
+    expect(component.openItems()).toMatchObject([
+      { name: 'Vollmilch', quantity: '2', productCode: VOLLMILCH.code, imageUrl: VOLLMILCH.imageUrl },
+    ]);
+    expect(component.showSuggestions()).toBe(false);
+    expect(component.newName).toBe('');
+
+    // Renaming drops the product picture, changing the quantity keeps it
+    const item = component.openItems()[0];
+    component.startEdit(item);
+    component.editQuantity = '3';
+    await component.saveEdit(item);
+    expect(component.openItems()[0].imageUrl).toBe(VOLLMILCH.imageUrl);
+    component.startEdit(component.openItems()[0]);
+    component.editName = 'Hafermilch';
+    await component.saveEdit(component.openItems()[0]);
+    expect(component.openItems()[0]).toMatchObject({ name: 'Hafermilch', imageUrl: null, productCode: null });
+    expect(store.items[0].imageUrl).toBeNull();
   });
 });

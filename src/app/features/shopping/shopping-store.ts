@@ -18,6 +18,14 @@ export interface ShoppingItem {
   checked: boolean;
   createdAt: string;
   checkedAt: string | null;
+  productCode: string | null;
+  imageUrl: string | null;
+}
+
+// What a new item may carry besides its name: a product picked from Open Food Facts
+export interface ItemProduct {
+  code: string;
+  imageUrl: string | null;
 }
 
 interface ListRow {
@@ -35,10 +43,12 @@ interface ItemRow {
   checked: boolean;
   created_at: string;
   checked_at: string | null;
+  product_code: string | null;
+  image_url: string | null;
 }
 
 const LIST_COLUMNS = 'id, name, owner_id, household_id';
-const ITEM_COLUMNS = 'id, list_id, name, quantity, checked, created_at, checked_at';
+const ITEM_COLUMNS = 'id, list_id, name, quantity, checked, created_at, checked_at, product_code, image_url';
 
 function toList(row: ListRow): ShoppingList {
   return { id: row.id, name: row.name, ownerId: row.owner_id, householdId: row.household_id };
@@ -53,6 +63,8 @@ function toItem(row: ItemRow): ShoppingItem {
     checked: row.checked,
     createdAt: row.created_at,
     checkedAt: row.checked_at,
+    productCode: row.product_code,
+    imageUrl: row.image_url,
   };
 }
 
@@ -107,19 +119,24 @@ export class ShoppingStore {
     return (data as ItemRow[]).map(toItem);
   }
 
-  async addItem(listId: string, name: string, quantity: string | null): Promise<ShoppingItem> {
+  async addItem(listId: string, name: string, quantity: string | null, product: ItemProduct | null = null): Promise<ShoppingItem> {
     const { data, error } = await this.supabase.client
       .from('shopping_items')
-      .insert({ list_id: listId, name, quantity })
+      .insert({ list_id: listId, name, quantity, product_code: product?.code ?? null, image_url: product?.imageUrl ?? null })
       .select(ITEM_COLUMNS)
       .single();
     if (error) throw error;
     return toItem(data as ItemRow);
   }
 
+  // A new name no longer matches the linked product, so its barcode and picture go
   async updateItem(id: string, changes: { name?: string; quantity?: string | null; checked?: boolean }): Promise<void> {
     const row: Partial<ItemRow> = {};
-    if (changes.name !== undefined) row.name = changes.name;
+    if (changes.name !== undefined) {
+      row.name = changes.name;
+      row.product_code = null;
+      row.image_url = null;
+    }
     if (changes.quantity !== undefined) row.quantity = changes.quantity;
     if (changes.checked !== undefined) {
       row.checked = changes.checked;

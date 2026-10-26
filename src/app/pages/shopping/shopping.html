@@ -79,16 +79,48 @@
         }
 
         <section class="rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-3 md:p-4">
-            <form class="flex gap-2 mb-3" (ngSubmit)="addItem()">
-                <input class="flex-1 min-w-0 p-2 rounded bg-white" name="newName" [(ngModel)]="newName" list="shopping-suggestions" placeholder="Artikel, z. B. Milch" aria-label="Artikel" autocomplete="off" enterkeyhint="done" />
+            <form class="relative flex gap-2 mb-3" (ngSubmit)="addItem()">
+                <div class="flex-1 min-w-0" (focusout)="leaveSuggestions($event)">
+                    <input class="w-full p-2 rounded bg-white" name="newName" [ngModel]="newName" (ngModelChange)="onNameInput($event)" (keydown)="onNameKeydown($event)" (focus)="suggestOpen.set(true)"
+                           placeholder="Artikel, z. B. Milch" aria-label="Artikel" autocomplete="off" enterkeyhint="done"
+                           role="combobox" aria-controls="shopping-suggestions" [attr.aria-expanded]="showSuggestions()"
+                           [attr.aria-activedescendant]="activeSuggestion() >= 0 ? 'suggestion-' + activeSuggestion() : null" />
+                    @if (showSuggestions()) {
+                        <div animate.enter="anim-drop-in" animate.leave="anim-drop-out" class="absolute z-40 left-0 right-0 top-full mt-1 rounded-xl bg-white text-indigo-950 shadow-2xl ring-1 ring-black/5 overflow-hidden">
+                            <ul id="shopping-suggestions" role="listbox" aria-label="Vorschläge" class="max-h-80 overflow-y-auto py-1">
+                                @for (row of suggestionRows(); track $index; let i = $index) {
+                                    <li [id]="'suggestion-' + i" role="option" [attr.aria-selected]="i === activeSuggestion()"
+                                        class="flex items-center gap-3 px-3 py-2 cursor-pointer" [class.bg-fuchsia-100]="i === activeSuggestion()"
+                                        (pointerdown)="$event.preventDefault()" (click)="choose(row)" (pointerenter)="activeSuggestion.set(i)">
+                                        @if (row.kind === 'own') {
+                                            <span class="size-10 shrink-0 grid place-items-center rounded-lg bg-gray-100 text-gray-500" aria-hidden="true">↺</span>
+                                            <span class="truncate">{{ row.name }}</span>
+                                        } @else {
+                                            @if (row.product.imageUrl) {
+                                                <img class="size-10 shrink-0 rounded-lg object-contain bg-white" [src]="row.product.imageUrl" alt="" loading="lazy" referrerpolicy="no-referrer" />
+                                            } @else {
+                                                <span class="size-10 shrink-0 rounded-lg bg-gray-100" aria-hidden="true"></span>
+                                            }
+                                            <span class="min-w-0 flex flex-col">
+                                                <span class="truncate">{{ row.product.name }}</span>
+                                                @if (productDetails(row.product)) {
+                                                    <span class="truncate text-xs text-gray-500">{{ productDetails(row.product) }}</span>
+                                                }
+                                            </span>
+                                        }
+                                    </li>
+                                }
+                            </ul>
+                            <p class="flex justify-between gap-2 px-3 py-1.5 border-t border-gray-100 text-xs text-gray-500">
+                                <span>{{ searching() ? 'Suche Produkte…' : '' }}</span>
+                                <span class="shrink-0">Produktdaten: <a class="underline" href="https://ch-de.openfoodfacts.org" target="_blank" rel="noopener" (pointerdown)="$event.preventDefault()">Open Food Facts</a></span>
+                            </p>
+                        </div>
+                    }
+                </div>
                 <input class="w-20 sm:w-28 p-2 rounded bg-white" name="newQuantity" [(ngModel)]="newQuantity" placeholder="Menge" aria-label="Menge" autocomplete="off" />
                 <button type="submit" class="px-4 py-2 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white disabled:opacity-50" [disabled]="!newName.trim()" aria-label="Artikel hinzufügen">+</button>
             </form>
-            <datalist id="shopping-suggestions">
-                @for (name of suggestions(); track name) {
-                    <option [value]="name"></option>
-                }
-            </datalist>
 
             @if (errorText() && panel() === 'none') {
                 <p class="mb-3 p-2 rounded bg-red-200 text-red-900 text-sm">{{ errorText() }}</p>
@@ -124,6 +156,9 @@
     <ng-template #row let-item>
         <li animate.enter="anim-fade-in" class="group flex items-center gap-3 py-1.5 border-b border-gray-200 last:border-b-0">
             <input type="checkbox" class="size-5 shrink-0 accent-indigo-600" [checked]="item.checked" (change)="toggle(item)" [attr.aria-label]="item.name + ' abhaken'" />
+            @if (item.imageUrl) {
+                <img class="size-10 shrink-0 rounded-lg object-contain bg-white" [class.opacity-50]="item.checked" [src]="item.imageUrl" alt="" loading="lazy" referrerpolicy="no-referrer" />
+            }
             @if (editingId() === item.id) {
                 <span class="flex-1 min-w-0 flex gap-2" (focusout)="leaveEdit($event, item)" (keydown.enter)="saveEdit(item)" (keydown.escape)="cancelEdit()">
                     <input #editInput class="flex-1 min-w-0 p-1 rounded bg-white" [(ngModel)]="editName" aria-label="Artikel" enterkeyhint="done" />
