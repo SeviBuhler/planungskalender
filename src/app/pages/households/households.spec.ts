@@ -51,7 +51,7 @@ describe('Households', () => {
     component.toggleNewModule('calendar');
     await component.create();
 
-    expect(store.households).toEqual([{ id: 'h1', name: 'Wir zwei', inviteCode: 'CODE1234', memberCount: 1, modules: ['finance'] }]);
+    expect(store.households).toEqual([{ id: 'h1', name: 'Wir zwei', inviteCode: 'CODE1234', memberCount: 1, modules: ['finance', 'shopping'] }]);
     expect(component.households().length).toBe(1);
     expect(component.newName).toBe('');
   });

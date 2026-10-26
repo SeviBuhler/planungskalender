@@ -6,7 +6,7 @@ export type HouseholdModule = 'finance' | 'calendar' | 'shopping';
 export const MODULES: { id: HouseholdModule; label: string; available: boolean }[] = [
   { id: 'finance', label: 'Finanzplanung', available: true },
   { id: 'calendar', label: 'Kalender', available: true },
-  { id: 'shopping', label: 'Einkaufsliste', available: false },
+  { id: 'shopping', label: 'Einkaufsliste', available: true },
 ];
 
 export interface Household {
