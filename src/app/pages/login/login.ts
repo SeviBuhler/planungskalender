@@ -148,7 +148,7 @@ function passkeyDeclined(): boolean {
 function codeError(message: string): string {
   return /rate|seconds|security purposes/i.test(message)
     ? 'Zu viele Codes angefordert. Warte kurz und versuch es nochmals.'
-    : 'Der Code konnte nicht gesendet werden.';
+    : `Der Code konnte nicht gesendet werden (${message}).`;
 }
 
 function deviceName(): string {
