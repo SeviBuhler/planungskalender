@@ -1,0 +1,143 @@
+<div class="min-h-screen bg-gray-300 dark:bg-gray-800 p-3 md:p-6 text-sky-950 dark:text-sky-100">
+    <header class="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <p class="font-bold text-3xl md:text-4xl">Einkaufsliste</p>
+        <nav class="flex flex-wrap gap-2">
+            <a class="px-4 py-2 rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100" routerLink="/households">Haushalte</a>
+            <a class="px-4 py-2 rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100" routerLink="/calendar">Kalender</a>
+            <a class="px-4 py-2 rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100" routerLink="/finance">Finanzen</a>
+        </nav>
+    </header>
+
+    <ng-template #listPanel>
+        <section animate.enter="anim-pop-in" class="max-w-xl mx-auto mb-4 rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-4 md:p-6 flex flex-col gap-4">
+            <h2 class="font-semibold text-xl">{{ panel() === 'new' ? 'Neue Einkaufsliste' : 'Liste bearbeiten' }}</h2>
+            <label class="flex flex-col text-sm">Name
+                <input class="mt-1 p-2 rounded bg-white" [(ngModel)]="listName" placeholder="z. B. Wocheneinkauf" (keydown.enter)="panel() === 'new' ? createList() : saveSettings()" />
+            </label>
+            <fieldset class="flex flex-col gap-2 text-sm">
+                <legend class="mb-1">Wer sieht die Liste?</legend>
+                <label class="flex items-center gap-2"><input type="radio" name="household" value="private" [(ngModel)]="householdChoice" /> Nur ich (privat)</label>
+                @for (h of shoppingHouseholds(); track h.id) {
+                    <label class="flex items-center gap-2"><input type="radio" name="household" [value]="h.id" [(ngModel)]="householdChoice" /> Haushalt „{{ h.name }}“ ({{ h.memberCount }} {{ h.memberCount === 1 ? 'Mitglied' : 'Mitglieder' }})</label>
+                }
+                @if (shoppingHouseholds().length === 0) {
+                    <p class="text-gray-600">Zum Teilen im Haushalt das Modul „Einkaufsliste“ einschalten.</p>
+                }
+                <a class="text-indigo-700 underline" routerLink="/households">Haushalte verwalten</a>
+            </fieldset>
+            @if (errorText()) {
+                <p class="p-2 rounded bg-red-200 text-red-900 text-sm">{{ errorText() }}</p>
+            }
+            <div class="flex flex-wrap gap-2 justify-end">
+                @if (panel() === 'settings') {
+                    <button class="mr-auto px-4 py-2 rounded-lg text-red-700 hover:bg-red-100" (click)="deleteList()">Liste löschen</button>
+                }
+                @if (lists().length > 0) {
+                    <button class="px-4 py-2 rounded-lg hover:bg-gray-300" (click)="closePanel()">Abbrechen</button>
+                }
+                @if (panel() === 'new') {
+                    <button class="px-4 py-2 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white" (click)="createList()">Liste erstellen</button>
+                } @else {
+                    <button class="px-4 py-2 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white" (click)="saveSettings()">Speichern</button>
+                }
+            </div>
+        </section>
+    </ng-template>
+
+    @switch (state()) {
+    @case ('error') {
+        <section class="max-w-md mx-auto mt-8 rounded-lg bg-red-200 text-red-900 shadow p-6">
+            <h2 class="font-semibold text-lg mb-2">Die Einkaufslisten konnten nicht geladen werden</h2>
+            <p class="text-sm">{{ errorText() }}</p>
+        </section>
+    }
+    @case ('loading') {
+        <p class="text-center mt-8">Lade…</p>
+    }
+    @case ('empty') {
+        <p class="max-w-xl mx-auto mb-4 text-sm">Du hast noch keine Einkaufsliste. Eine Liste ist entweder privat oder gehört zu einem deiner Haushalte.</p>
+        <ng-container [ngTemplateOutlet]="listPanel" />
+    }
+    @case ('ready') {
+    <div class="max-w-2xl mx-auto">
+        <div class="flex flex-wrap items-center gap-2 mb-2">
+            <app-select class="flex-1 min-w-48" ariaLabel="Einkaufsliste" [options]="listOptions()" [value]="list()?.id" (valueChange)="selectList($event)" />
+            @if (isOwner()) {
+                <button class="px-3 py-2 rounded-lg shadow bg-gray-100 text-indigo-800 hover:bg-fuchsia-100" (click)="openSettings()">Bearbeiten</button>
+            }
+            <button class="px-3 py-2 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white" (click)="openNewList()">+ Neue Liste</button>
+        </div>
+        <p class="mb-4 text-sm">
+            @if (listHousehold(); as h) {
+                Geteilt im Haushalt „{{ h.name }}“. Alle Mitglieder können Artikel hinzufügen und abhaken.
+            } @else {
+                Privat, nur du siehst diese Liste.
+            }
+        </p>
+        @if (panel() !== 'none') {
+            <ng-container [ngTemplateOutlet]="listPanel" />
+        }
+
+        <section class="rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-3 md:p-4">
+            <form class="flex gap-2 mb-3" (ngSubmit)="addItem()">
+                <input class="flex-1 min-w-0 p-2 rounded bg-white" name="newName" [(ngModel)]="newName" list="shopping-suggestions" placeholder="Artikel, z. B. Milch" aria-label="Artikel" autocomplete="off" enterkeyhint="done" />
+                <input class="w-20 sm:w-28 p-2 rounded bg-white" name="newQuantity" [(ngModel)]="newQuantity" placeholder="Menge" aria-label="Menge" autocomplete="off" />
+                <button type="submit" class="px-4 py-2 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white disabled:opacity-50" [disabled]="!newName.trim()" aria-label="Artikel hinzufügen">+</button>
+            </form>
+            <datalist id="shopping-suggestions">
+                @for (name of suggestions(); track name) {
+                    <option [value]="name"></option>
+                }
+            </datalist>
+
+            @if (errorText() && panel() === 'none') {
+                <p class="mb-3 p-2 rounded bg-red-200 text-red-900 text-sm">{{ errorText() }}</p>
+            }
+
+            @if (openItems().length === 0) {
+                <p class="py-6 text-center text-sm text-gray-600">
+                    {{ checkedItems().length > 0 ? 'Alles erledigt 🎉' : 'Die Liste ist leer.' }}
+                </p>
+            }
+            <ul class="flex flex-col">
+                @for (item of openItems(); track item.id) {
+                    <ng-container [ngTemplateOutlet]="row" [ngTemplateOutletContext]="{ $implicit: item }" />
+                }
+            </ul>
+
+            @if (checkedItems().length > 0) {
+                <div class="flex items-center justify-between gap-2 mt-4 mb-1 pt-3 border-t border-gray-300">
+                    <h3 class="text-sm font-semibold text-gray-600">Erledigt ({{ checkedItems().length }})</h3>
+                    <button class="px-3 py-1 rounded-lg text-sm text-red-700 hover:bg-red-100" (click)="clearChecked()">Erledigte löschen</button>
+                </div>
+                <ul class="flex flex-col">
+                    @for (item of checkedItems(); track item.id) {
+                        <ng-container [ngTemplateOutlet]="row" [ngTemplateOutletContext]="{ $implicit: item }" />
+                    }
+                </ul>
+            }
+        </section>
+    </div>
+    }
+    }
+
+    <ng-template #row let-item>
+        <li animate.enter="anim-fade-in" class="group flex items-center gap-3 py-1.5 border-b border-gray-200 last:border-b-0">
+            <input type="checkbox" class="size-5 shrink-0 accent-indigo-600" [checked]="item.checked" (change)="toggle(item)" [attr.aria-label]="item.name + ' abhaken'" />
+            @if (editingId() === item.id) {
+                <span class="flex-1 min-w-0 flex gap-2" (focusout)="leaveEdit($event, item)" (keydown.enter)="saveEdit(item)" (keydown.escape)="cancelEdit()">
+                    <input #editInput class="flex-1 min-w-0 p-1 rounded bg-white" [(ngModel)]="editName" aria-label="Artikel" enterkeyhint="done" />
+                    <input class="w-20 sm:w-28 p-1 rounded bg-white" [(ngModel)]="editQuantity" placeholder="Menge" aria-label="Menge" enterkeyhint="done" />
+                </span>
+            } @else {
+                <button class="flex-1 min-w-0 flex items-baseline gap-2 text-left py-1" (click)="startEdit(item)" [attr.aria-label]="item.name + ' bearbeiten'">
+                    <span class="truncate" [class.line-through]="item.checked" [class.text-gray-500]="item.checked">{{ item.name }}</span>
+                    @if (item.quantity) {
+                        <span class="shrink-0 text-sm text-gray-600">{{ item.quantity }}</span>
+                    }
+                </button>
+            }
+            <button class="shrink-0 px-2 py-1 rounded text-gray-500 hover:bg-red-100 hover:text-red-700" (click)="removeItem(item)" [attr.aria-label]="item.name + ' entfernen'">✕</button>
+        </li>
+    </ng-template>
+</div>

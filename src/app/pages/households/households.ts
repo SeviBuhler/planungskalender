@@ -23,7 +23,7 @@ export class Households {
   readonly errorText = signal('');
 
   newName = '';
-  newModules = new Set<HouseholdModule>(['finance', 'calendar']);
+  newModules = new Set<HouseholdModule>(['finance', 'calendar', 'shopping']);
   inviteCode = '';
 
   constructor(private store: HouseholdStore, private confirm: ConfirmService) {
@@ -83,7 +83,7 @@ export class Households {
 
   async leave(household: Household) {
     const last = household.memberCount === 1 ? ' Du bist das letzte Mitglied, der Haushalt wird gelöscht.' : '';
-    if (!(await this.confirm.ask(`Haushalt „${household.name}“ verlassen? Deine geteilten Finanzpläne und Termine darin werden wieder privat.${last}`, 'Verlassen'))) return;
+    if (!(await this.confirm.ask(`Haushalt „${household.name}“ verlassen? Deine geteilten Finanzpläne, Termine und Einkaufslisten darin werden wieder privat.${last}`, 'Verlassen'))) return;
     await this.run(() => this.store.leave(household.id));
   }
 }
