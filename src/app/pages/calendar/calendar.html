@@ -31,12 +31,16 @@
     }
 
     <div class="swipe-area relative flex-1 select-none md:px-14"
-         (pointerdown)="onPointerDown($event)" (pointerup)="onPointerUp($event)" (pointercancel)="onPointerCancel()">
+         (pointerdown)="onPointerDown($event)" (pointermove)="onPointerMove($event)" (pointerup)="onPointerUp($event)" (pointercancel)="onPointerCancel()">
         <button class="hidden md:flex absolute left-0 top-0 bottom-0 w-12 items-center justify-center rounded-lg bg-indigo-600/10 hover:bg-indigo-600/30 text-3xl text-indigo-800 dark:text-sky-100"
                 (click)="previous()" aria-label="Zurück">‹</button>
         <button class="hidden md:flex absolute right-0 top-0 bottom-0 w-12 items-center justify-center rounded-lg bg-indigo-600/10 hover:bg-indigo-600/30 text-3xl text-indigo-800 dark:text-sky-100"
                 (click)="next()" aria-label="Weiter">›</button>
 
+        <div class="overflow-hidden">
+        @for (page of [pageKey()]; track page) {
+        <div [class]="slideClass()" [style.transform]="dragX() ? 'translateX(' + dragX() + 'px)' : null"
+             [class.transition-transform]="!dragging()" [class.duration-200]="!dragging()">
         @switch (view()) {
             @case ('year') {
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
@@ -128,11 +132,15 @@
                 </div>
             }
         }
+        </div>
+        }
+        </div>
     </div>
 
     @if (form(); as f) {
-        <div class="fixed inset-0 z-10 flex items-end sm:items-center justify-center bg-black/40 p-3" (click)="closeForm()">
-            <section class="w-full max-w-lg rounded-lg bg-gray-100 text-indigo-950 shadow-2xl p-4 flex flex-col gap-3 max-h-[90vh] overflow-y-auto" (click)="$event.stopPropagation()">
+        <div class="fixed inset-0 z-10 flex items-end sm:items-center justify-center bg-black/40 p-3"
+             animate.enter="anim-fade-in" animate.leave="anim-fade-out" (click)="closeForm()">
+            <section animate.enter="anim-dialog-in" animate.leave="anim-dialog-out" class="w-full max-w-lg rounded-2xl bg-gray-100 text-indigo-950 shadow-2xl p-4 flex flex-col gap-3 max-h-[90vh] overflow-y-auto" (click)="$event.stopPropagation()">
                 <h2 class="font-semibold text-xl">{{ f.original ? 'Termin bearbeiten' : 'Neuer Termin' }}</h2>
                 <input class="p-2 rounded bg-white" [ngModel]="f.title" (ngModelChange)="patchForm({ title: $event })" placeholder="Titel" aria-label="Titel" />
                 <label class="flex items-center gap-2 text-sm"><input type="checkbox" [ngModel]="f.allDay" (ngModelChange)="patchForm({ allDay: $event })" /> Ganztägig</label>
@@ -155,23 +163,15 @@
                     }
                 </div>
                 @if (f.original?.seriesId) {
-                    <label class="flex flex-col text-sm">Wiederkehrender Termin: Änderung gilt für
-                        <select class="mt-1 p-2 rounded bg-white" [ngModel]="f.scope" (ngModelChange)="patchForm({ scope: $event })">
-                            <option value="one">Nur diesen Termin</option>
-                            <option value="following">Diesen und alle folgenden</option>
-                        </select>
-                    </label>
+                    <div class="flex flex-col gap-1 text-sm">Wiederkehrender Termin: Änderung gilt für
+                        <app-select ariaLabel="Änderung gilt für" [options]="scopeOptions" [value]="f.scope" (valueChange)="patchForm({ scope: $any($event) })" />
+                    </div>
                 }
                 @if (showRecurrence(f)) {
                     <div class="grid grid-cols-2 gap-2 text-sm">
-                        <label class="flex flex-col">Wiederholen
-                            <select class="mt-1 p-2 rounded bg-white" [ngModel]="f.recurrence" (ngModelChange)="setRecurrence($event)">
-                                <option value="none">Nie</option>
-                                @for (r of recurrences; track r.id) {
-                                    <option [value]="r.id">{{ r.label }}</option>
-                                }
-                            </select>
-                        </label>
+                        <div class="flex flex-col gap-1">Wiederholen
+                            <app-select ariaLabel="Wiederholen" [options]="recurrenceOptions" [value]="f.recurrence" (valueChange)="setRecurrence($any($event))" />
+                        </div>
                         @if (f.recurrence !== 'none') {
                             <label class="flex flex-col">Bis
                                 <input class="mt-1 p-2 rounded bg-white" type="date" [ngModel]="f.recurrenceUntil" (ngModelChange)="patchForm({ recurrenceUntil: $event })" />
@@ -179,22 +179,12 @@
                         }
                     </div>
                 }
-                <label class="flex flex-col text-sm">Kategorie
-                    <select class="mt-1 p-2 rounded bg-white" [ngModel]="f.category" (ngModelChange)="patchForm({ category: $event })">
-                        <option value="">Keine</option>
-                        @for (c of categories; track c.id) {
-                            <option [value]="c.id">{{ c.label }}</option>
-                        }
-                    </select>
-                </label>
-                <label class="flex flex-col text-sm">Wer sieht den Termin?
-                    <select class="mt-1 p-2 rounded bg-white" [ngModel]="f.householdChoice" (ngModelChange)="patchForm({ householdChoice: $event })">
-                        <option value="private">Nur ich</option>
-                        @for (h of calendarHouseholds(); track h.id) {
-                            <option [value]="h.id">Haushalt „{{ h.name }}“</option>
-                        }
-                    </select>
-                </label>
+                <div class="flex flex-col gap-1 text-sm">Kategorie
+                    <app-select ariaLabel="Kategorie" [options]="categoryOptions" [value]="f.category" (valueChange)="patchForm({ category: $any($event) })" />
+                </div>
+                <div class="flex flex-col gap-1 text-sm">Wer sieht den Termin?
+                    <app-select ariaLabel="Wer sieht den Termin?" [options]="visibilityOptions()" [value]="f.householdChoice" (valueChange)="patchForm({ householdChoice: $event })" />
+                </div>
                 <textarea class="p-2 rounded bg-white" rows="3" [ngModel]="f.description" (ngModelChange)="patchForm({ description: $event })" placeholder="Beschreibung (optional)" aria-label="Beschreibung"></textarea>
                 @if (errorText()) {
                     <p class="p-2 rounded bg-red-200 text-red-900 text-sm">{{ errorText() }}</p>

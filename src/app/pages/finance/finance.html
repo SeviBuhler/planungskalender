@@ -52,11 +52,7 @@
     }
     @case ('ready') {
     <div class="flex flex-wrap items-center gap-2 mb-2">
-        <select class="flex-1 min-w-48 p-2 rounded-lg bg-gray-100 text-indigo-950 shadow" aria-label="Finanzplan" [ngModel]="plan()?.id" (ngModelChange)="selectPlan($event)">
-            @for (p of plans(); track p.id) {
-                <option [value]="p.id">{{ planLabel(p) }}</option>
-            }
-        </select>
+        <app-select class="flex-1 min-w-48" ariaLabel="Finanzplan" [options]="planOptions()" [value]="plan()?.id" (valueChange)="selectPlan($event)" />
         @if (isOwner()) {
             <button class="px-3 py-2 rounded-lg shadow bg-gray-100 text-indigo-800 hover:bg-fuchsia-100" (click)="openSettings()">Bearbeiten</button>
         }
@@ -70,7 +66,7 @@
         }
     </p>
     @if (panel() !== 'none') {
-        <section class="max-w-xl mx-auto mb-4 rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-4 md:p-6 flex flex-col gap-4">
+        <section animate.enter="anim-pop-in" class="max-w-xl mx-auto mb-4 rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-4 md:p-6 flex flex-col gap-4">
             <h2 class="font-semibold text-xl">{{ panel() === 'new' ? 'Neuer Finanzplan' : 'Plan bearbeiten' }}</h2>
             <label class="flex flex-col text-sm">Name
                 <input class="mt-1 p-2 rounded bg-white" [(ngModel)]="planName" placeholder="z. B. Mein Budget" />

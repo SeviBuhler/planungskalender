@@ -4,6 +4,8 @@ import { RouterLink } from '@angular/router';
 import { MonthBudget, allocate, carryOver, expenseTotal, nextMonth } from '../../features/finance/allocate';
 import { BudgetStore, FinancePlan } from '../../features/finance/budget-store';
 import { Household, HouseholdStore } from '../../features/households/household-store';
+import { ConfirmService } from '../../components/confirm/confirm';
+import { Select, SelectOption } from '../../components/select/select';
 
 type ListKey = 'expenses' | 'debts' | 'savings';
 type ViewState = 'loading' | 'empty' | 'ready' | 'error';
@@ -55,7 +57,7 @@ function rememberedPlan(): string | null {
 
 @Component({
   selector: 'app-finance',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, Select],
   templateUrl: './finance.html',
   styleUrl: './finance.css',
 })
@@ -72,6 +74,7 @@ export class Finance implements OnDestroy {
   readonly plans = computed(() =>
     this.allPlans().filter((p) => p.householdId === null || this.financeHouseholds().some((h) => h.id === p.householdId))
   );
+  readonly planOptions = computed<SelectOption[]>(() => this.plans().map((p) => ({ value: p.id, label: this.planLabel(p) })));
   readonly userId = signal<string | null>(null);
   readonly plan = signal<FinancePlan | null>(null);
 
@@ -94,7 +97,7 @@ export class Finance implements OnDestroy {
   private saveTimer: ReturnType<typeof setTimeout> | undefined;
   private loadToken = 0;
 
-  constructor(private store: BudgetStore, private householdStore: HouseholdStore) {
+  constructor(private store: BudgetStore, private householdStore: HouseholdStore, private confirm: ConfirmService) {
     this.init();
   }
 
@@ -208,7 +211,7 @@ export class Finance implements OnDestroy {
 
   async deletePlan() {
     const plan = this.plan();
-    if (!plan || !confirm(`Plan „${plan.name}“ mit allen Monaten löschen?`)) return;
+    if (!plan || !(await this.confirm.ask(`Plan „${plan.name}“ mit allen Monaten löschen?`, 'Löschen'))) return;
     clearTimeout(this.saveTimer);
     this.saveTimer = undefined;
     try {

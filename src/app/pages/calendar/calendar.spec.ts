@@ -5,6 +5,7 @@ import { Calendar } from './calendar';
 import { CalendarEvent } from '../../features/calendar/calendar-layout';
 import { CalendarStore, EventInput } from '../../features/calendar/calendar-store';
 import { Household, HouseholdStore } from '../../features/households/household-store';
+import { ConfirmService } from '../../components/confirm/confirm';
 
 class FakeCalendarStore {
   events: CalendarEvent[] = [];
@@ -104,6 +105,23 @@ describe('Calendar', () => {
     expect(component.date().getMonth()).toBe(10);
   });
 
+  it('lets the page follow the pointer and slides the next page in', () => {
+    component.onPointerDown(pointer('pointerdown', 300));
+    component.onPointerMove(pointer('pointermove', 295));
+    expect(component.dragging()).toBe(false); // too small to be a drag
+    component.onPointerMove(pointer('pointermove', 220));
+    expect(component.dragging()).toBe(true);
+    expect(component.dragX()).toBe(-80);
+
+    component.onPointerUp(pointer('pointerup', 200));
+    expect(component.dragX()).toBe(0);
+    expect(component.slideClass()).toBe('anim-slide-next');
+    expect(component.pageKey()).toContain('month:');
+
+    component.previous();
+    expect(component.slideClass()).toBe('anim-slide-prev');
+  });
+
   it('creates a timed event in a household with the calendar module', async () => {
     expect(component.calendarHouseholds().map((h) => h.name)).toEqual(['Wir zwei']);
 
@@ -195,7 +213,7 @@ describe('Calendar', () => {
 
   it('deletes this and all following occurrences', async () => {
     const series = await createSeries();
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    vi.spyOn(TestBed.inject(ConfirmService), 'ask').mockResolvedValue(true);
     component.editEvent(series()[3]);
     component.patchForm({ scope: 'following' });
     await component.deleteEvent();

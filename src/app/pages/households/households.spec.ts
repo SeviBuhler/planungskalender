@@ -3,6 +3,7 @@ import { provideRouter } from '@angular/router';
 
 import { Households } from './households';
 import { Household, HouseholdModule, HouseholdStore } from '../../features/households/household-store';
+import { ConfirmService } from '../../components/confirm/confirm';
 
 class FakeHouseholdStore {
   households: Household[] = [];
@@ -85,7 +86,7 @@ describe('Households', () => {
   it('leaves a household after confirming', async () => {
     await store.create('Wir zwei', ['finance']);
     await component.reload();
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    vi.spyOn(TestBed.inject(ConfirmService), 'ask').mockResolvedValue(true);
 
     await component.leave(component.households()[0]);
     expect(store.left).toEqual(['h1']);
