@@ -75,7 +75,7 @@ export class Login implements OnInit {
         email: this.email,
         options: { shouldCreateUser: false }
       });
-      if (result.error) throw new Error(codeError(result.error.message));
+      if (result.error) throw new Error(codeError(result.error));
       // The code creates a fresh session, so the password-only session is no longer needed
       if (this.step() === 'second-factor') await this.supabase.client.auth.signOut({ scope: 'local' });
       this.code = '';
@@ -145,10 +145,10 @@ function passkeyDeclined(): boolean {
   try { return localStorage.getItem(PASSKEY_DECLINED_KEY) === '1'; } catch { return false; }
 }
 
-function codeError(message: string): string {
-  return /rate|seconds|security purposes/i.test(message)
+function codeError(error: { message: string; status?: number; name: string }): string {
+  return /rate|seconds|security purposes/i.test(error.message)
     ? 'Zu viele Codes angefordert. Warte kurz und versuch es nochmals.'
-    : `Der Code konnte nicht gesendet werden (${message}).`;
+    : `Der Code konnte nicht gesendet werden (${error.status ?? ''} ${error.name}: ${error.message}).`;
 }
 
 function deviceName(): string {
