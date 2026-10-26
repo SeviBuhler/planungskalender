@@ -34,7 +34,8 @@ export class Signup {
 
       console.log('Update result:', updateResult);
 
-      this.router.navigate(['/calendar']);
+      // The login page asks for the second step (mail code / Face ID)
+      this.router.navigate(['/login']);
     }
 
     console.log(result);

@@ -2,8 +2,41 @@
     <h1 class="m-3 mb-10 p-4 flex items-center gap-4 text-[#25134D] dark:text-sky-100 font-bold text-6xl md:text-7xl">
         <img class="h-12 md:h-14 w-auto" src="icons/fortwo-mark.svg" alt="" />ForTwo
     </h1>
-    <input class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl text-center text- text-indigo-800 dark:text-indigo-950 bg-gray-100 dark:bg-gray-200" [(ngModel)]="email" placeholder="Email" />
-    <input class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl text-center text-indigo-800 dark:text-indigo-950 bg-gray-100 dark:bg-gray-200" type="password" [(ngModel)]="password" placeholder="Password" />
-    <button class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100" (click)="handleLogin()">Log in</button>
-    <a class="m-3 p-4 w-full text-center max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100" routerLink="/signup">No user - Sign up</a>
+
+    @switch (step()) {
+        @case ('credentials') {
+            <form class="contents" (ngSubmit)="handleLogin()">
+                <input class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl text-center text- text-indigo-800 dark:text-indigo-950 bg-gray-100 dark:bg-gray-200" name="email" type="email" autocomplete="username" [(ngModel)]="email" placeholder="Email" />
+                <input class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl text-center text-indigo-800 dark:text-indigo-950 bg-gray-100 dark:bg-gray-200" name="password" type="password" autocomplete="current-password" [(ngModel)]="password" placeholder="Password" />
+                <button class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100 disabled:opacity-60" type="submit" [disabled]="busy()">Log in</button>
+            </form>
+            <a class="m-3 p-4 w-full text-center max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100" routerLink="/signup">No user - Sign up</a>
+        }
+        @case ('second-factor') {
+            <p class="m-3 w-full max-w-xs text-center text-[#25134D] dark:text-sky-100">Bestätige deine Anmeldung. Danach bleibst du auf diesem Gerät 7 Tage angemeldet.</p>
+            @if (passkeyFactorId() && passkeySupported()) {
+                <button class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100 disabled:opacity-60" [disabled]="busy()" (click)="handlePasskey()">Mit Face ID bestätigen</button>
+            }
+            <button class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100 disabled:opacity-60" [disabled]="busy()" (click)="sendCode()">Code per E-Mail senden</button>
+            <button class="m-3 text-sm underline text-[#25134D] dark:text-sky-100" (click)="backToStart()">Abbrechen</button>
+        }
+        @case ('code') {
+            <p class="m-3 w-full max-w-xs text-center text-[#25134D] dark:text-sky-100">Wir haben dir einen Code an {{ email }} geschickt.</p>
+            <form class="contents" (ngSubmit)="verifyCode()">
+                <input class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl text-center text-2xl tracking-[0.3em] text-indigo-800 dark:text-indigo-950 bg-gray-100 dark:bg-gray-200" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" [(ngModel)]="code" placeholder="Code" />
+                <button class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100 disabled:opacity-60" type="submit" [disabled]="busy()">Bestätigen</button>
+            </form>
+            <button class="m-3 text-sm underline text-[#25134D] dark:text-sky-100 disabled:opacity-60" [disabled]="busy()" (click)="sendCode()">Neuen Code senden</button>
+            <button class="m-3 text-sm underline text-[#25134D] dark:text-sky-100" (click)="backToStart()">Abbrechen</button>
+        }
+        @case ('offer-passkey') {
+            <p class="m-3 w-full max-w-xs text-center text-[#25134D] dark:text-sky-100">Nächstes Mal mit Face ID statt E-Mail-Code bestätigen?</p>
+            <button class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100 disabled:opacity-60" [disabled]="busy()" (click)="setupPasskey()">Face ID einrichten</button>
+            <button class="m-3 text-sm underline text-[#25134D] dark:text-sky-100" (click)="skipPasskey()">Später</button>
+        }
+    }
+
+    @if (errorText()) {
+        <p class="m-3 w-full max-w-xs text-center text-red-700 dark:text-red-300" role="alert">{{ errorText() }}</p>
+    }
 </div>
