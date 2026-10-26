@@ -3,6 +3,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ShoppingItem, ShoppingList, ShoppingStore } from '../../features/shopping/shopping-store';
+import { MIN_SEARCH_LENGTH, Product, ProductSearch } from '../../features/shopping/product-search';
 import { Household, HouseholdStore } from '../../features/households/household-store';
 import { ConfirmService } from '../../components/confirm/confirm';
 import { Select, SelectOption } from '../../components/select/select';
@@ -13,6 +14,12 @@ type Panel = 'none' | 'new' | 'settings';
 const SELECTED_LIST_KEY = 'shoppingSelectedList';
 // Several changes from one save arrive close together; reload once
 const RELOAD_DELAY_MS = 150;
+// Search Open Food Facts once typing pauses, not on every key
+const SEARCH_DELAY_MS = 400;
+const OWN_SUGGESTIONS = 4;
+
+// One row of the dropdown under the item input: an item typed before or a product
+export type Suggestion = { kind: 'own'; name: string } | { kind: 'product'; product: Product };
 
 function errorMessage(error: unknown): string {
   return error instanceof Error || (typeof error === 'object' && error !== null && 'message' in error)
@@ -73,6 +80,23 @@ export class Shopping implements OnDestroy {
   );
   readonly suggestions = signal<string[]>([]);
 
+  // Dropdown under the item input
+  private readonly query = signal('');
+  readonly products = signal<Product[]>([]);
+  readonly searching = signal(false);
+  readonly suggestOpen = signal(false);
+  readonly activeSuggestion = signal(-1);
+  readonly suggestionRows = computed<Suggestion[]>(() => {
+    const query = this.query().trim().toLowerCase();
+    if (!query) return [];
+    const own = this.suggestions()
+      .filter((name) => name.toLowerCase().includes(query) && name.toLowerCase() !== query)
+      .slice(0, OWN_SUGGESTIONS)
+      .map((name): Suggestion => ({ kind: 'own', name }));
+    return [...own, ...this.products().map((product): Suggestion => ({ kind: 'product', product }))];
+  });
+  readonly showSuggestions = computed(() => this.suggestOpen() && (this.suggestionRows().length > 0 || this.searching()));
+
   // Form fields for "Neue Liste" and the list settings
   listName = '';
   householdChoice = 'private';
@@ -88,8 +112,15 @@ export class Shopping implements OnDestroy {
   private unsubscribe: (() => void) | undefined;
   private reloadTimer: ReturnType<typeof setTimeout> | undefined;
   private loadToken = 0;
+  private searchTimer: ReturnType<typeof setTimeout> | undefined;
+  private searchAbort: AbortController | undefined;
 
-  constructor(private store: ShoppingStore, private householdStore: HouseholdStore, private confirm: ConfirmService) {
+  constructor(
+    private store: ShoppingStore,
+    private householdStore: HouseholdStore,
+    private confirm: ConfirmService,
+    private productSearch: ProductSearch
+  ) {
     this.init();
     // Focus the name as soon as a row switches to editing
     effect(() => this.editInput()?.nativeElement.focus());
@@ -98,6 +129,7 @@ export class Shopping implements OnDestroy {
   ngOnDestroy() {
     this.unsubscribe?.();
     clearTimeout(this.reloadTimer);
+    this.stopSearch();
   }
 
   householdOf(list: ShoppingList | null): Household | null {
@@ -239,16 +271,95 @@ export class Shopping implements OnDestroy {
     }
   }
 
-  async addItem() {
+  onNameInput(value: string) {
+    this.newName = value;
+    this.query.set(value);
+    this.suggestOpen.set(true);
+    this.activeSuggestion.set(-1);
+    this.stopSearch();
+    this.products.set([]);
+    if (value.trim().length < MIN_SEARCH_LENGTH) return;
+    this.searching.set(true);
+    this.searchTimer = setTimeout(() => this.runSearch(value), SEARCH_DELAY_MS);
+  }
+
+  private async runSearch(term: string) {
+    const abort = new AbortController();
+    this.searchAbort = abort;
+    try {
+      const products = await this.productSearch.search(term, abort.signal);
+      if (!abort.signal.aborted) this.products.set(products);
+    } catch {
+      // Without the product database the own suggestions still work
+    } finally {
+      if (!abort.signal.aborted) this.searching.set(false);
+    }
+  }
+
+  private stopSearch() {
+    clearTimeout(this.searchTimer);
+    this.searchAbort?.abort();
+    this.searching.set(false);
+  }
+
+  // Clicks inside the dropdown keep the focus; leaving the input closes it
+  leaveSuggestions(event: FocusEvent) {
+    const box = event.currentTarget as HTMLElement;
+    if (!box.contains(event.relatedTarget as Node | null)) this.closeSuggestions();
+  }
+
+  closeSuggestions() {
+    this.suggestOpen.set(false);
+    this.activeSuggestion.set(-1);
+  }
+
+  onNameKeydown(event: KeyboardEvent) {
+    const count = this.suggestionRows().length;
+    if (!this.showSuggestions() || count === 0) return;
+    switch (event.key) {
+      case 'ArrowDown':
+      case 'ArrowUp':
+        event.preventDefault();
+        this.activeSuggestion.update((i) => (event.key === 'ArrowDown' ? (i + 1) % count : (i <= 0 ? count : i) - 1));
+        return;
+      case 'Enter': {
+        const row = this.suggestionRows()[this.activeSuggestion()];
+        if (row) {
+          event.preventDefault();
+          this.choose(row);
+        }
+        return;
+      }
+      case 'Escape':
+        this.closeSuggestions();
+        return;
+    }
+  }
+
+  // Picking a suggestion adds it right away, with the quantity typed so far
+  choose(row: Suggestion) {
+    this.newName = row.kind === 'own' ? row.name : row.product.name;
+    return this.addItem(row.kind === 'product' ? row.product : null);
+  }
+
+  productDetails(product: Product): string {
+    return [product.brand, product.quantity].filter(Boolean).join(' · ');
+  }
+
+  async addItem(product: Product | null = null) {
     const list = this.list();
     const name = this.newName.trim();
     if (!list || !name) return;
     const quantity = optional(this.newQuantity);
     this.newName = '';
     this.newQuantity = '';
+    this.query.set('');
+    this.stopSearch();
+    this.products.set([]);
+    this.closeSuggestions();
     this.errorText.set('');
     try {
-      const item = await this.store.addItem(list.id, name, quantity);
+      const item = await this.store.addItem(list.id, name, quantity, product && { code: product.code, imageUrl: product.imageUrl });
       // The realtime echo may already have brought it in
       this.items.update((items) => (items.some((i) => i.id === item.id) ? items : [...items, item]));
       if (!this.suggestions().some((s) => s.toLowerCase() === name.toLowerCase())) {
@@ -296,11 +407,12 @@ export class Shopping implements OnDestroy {
     const quantity = optional(this.editQuantity);
     this.editingId.set(null);
     if (!name || (name === item.name && quantity === item.quantity)) return;
-    this.patchItem(item.id, { name, quantity });
+    const renamed = name !== item.name;
+    this.patchItem(item.id, renamed ? { name, quantity, productCode: null, imageUrl: null } : { quantity });
     try {
-      await this.store.updateItem(item.id, { name, quantity });
+      await this.store.updateItem(item.id, renamed ? { name, quantity } : { quantity });
     } catch (error) {
-      this.patchItem(item.id, { name: item.name, quantity: item.quantity });
+      this.patchItem(item.id, { name: item.name, quantity: item.quantity, productCode: item.productCode, imageUrl: item.imageUrl });
       this.errorText.set(errorMessage(error));
     }
   }
