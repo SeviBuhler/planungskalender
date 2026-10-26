@@ -1,5 +1,7 @@
 <div class="flex justify-center place-items-center flex-col min-h-screen bg-gray-300 dark:bg-gray-800">
-    <p class="m-3 mb-10 p-4 text-center text-sky-950 dark:text-sky-100 font-bold text-6xl md:text-7xl">ForTwo</p>
+    <h1 class="m-3 mb-10 p-4 flex items-center gap-4 text-[#25134D] dark:text-sky-100 font-bold text-6xl md:text-7xl">
+        <img class="h-12 md:h-14 w-auto" src="icons/fortwo-mark.svg" alt="" />ForTwo
+    </h1>
     <input class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl text-center text- text-indigo-800 dark:text-indigo-950 bg-gray-100 dark:bg-gray-200" [(ngModel)]="email" placeholder="Email" />
     <input class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl text-center text-indigo-800 dark:text-indigo-950 bg-gray-100 dark:bg-gray-200" type="password" [(ngModel)]="password" placeholder="Password" />
     <button class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100" (click)="handleLogin()">Log in</button>
