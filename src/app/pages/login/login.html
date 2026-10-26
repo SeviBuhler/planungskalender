@@ -18,6 +18,9 @@
                 <button class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100 disabled:opacity-60" [disabled]="busy()" (click)="handlePasskey()">Mit Gerätesperre bestätigen</button>
             }
             <button class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100 disabled:opacity-60" [disabled]="busy()" (click)="sendCode()">Code per E-Mail senden</button>
+            @if (passkeySupported() && !passkeyHere()) {
+                <button class="m-3 text-sm underline text-[#25134D] dark:text-sky-100 disabled:opacity-60" [disabled]="busy()" (click)="setupWithCode()">Gerätesperre für dieses Gerät einrichten</button>
+            }
             <button class="m-3 text-sm underline text-[#25134D] dark:text-sky-100" (click)="backToStart()">Abbrechen</button>
         }
         @case ('code') {
