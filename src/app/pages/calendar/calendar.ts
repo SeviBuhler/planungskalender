@@ -21,6 +21,7 @@ import { CATEGORIES, DEFAULT_TILE, MAX_OCCURRENCES, RECURRENCES, occurrences } f
 import { Household, HouseholdStore } from '../../features/households/household-store';
 import { ConfirmService } from '../../components/confirm/confirm';
 import { Select, SelectOption } from '../../components/select/select';
+import { SubscribeDialog } from './subscribe-dialog';
 
 const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 const SWIPE_MIN_PX = 60;
@@ -70,7 +71,7 @@ function errorMessage(error: unknown): string {
 
 @Component({
   selector: 'app-calendar',
-  imports: [FormsModule, RouterLink, Select],
+  imports: [FormsModule, RouterLink, Select, SubscribeDialog],
   templateUrl: './calendar.html',
   styleUrl: './calendar.css',
 })
@@ -110,6 +111,7 @@ export class Calendar {
   readonly trackTransform = computed(() => `translateX(calc(${this.trackShift() - 100}% + ${this.dragX()}px))`);
   readonly fadeClass = signal('');
   readonly form = signal<EventForm | null>(null);
+  readonly subscribeOpen = signal(false);
 
   readonly title = computed(() => {
     const date = this.date();
