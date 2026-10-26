@@ -14,7 +14,7 @@
         }
         @case ('second-factor') {
             <p class="m-3 w-full max-w-xs text-center text-[#25134D] dark:text-sky-100">Bestätige deine Anmeldung. Danach bleibst du auf diesem Gerät 7 Tage angemeldet.</p>
-            @if (passkeyFactorId() && passkeySupported()) {
+            @if (passkeyHere() && passkeySupported()) {
                 <button class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100 disabled:opacity-60" [disabled]="busy()" (click)="handlePasskey()">Mit Gerätesperre bestätigen</button>
             }
             <button class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100 disabled:opacity-60" [disabled]="busy()" (click)="sendCode()">Code per E-Mail senden</button>

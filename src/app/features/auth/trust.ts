@@ -6,6 +6,7 @@ export const TRUST_DAYS = 7;
 export const SECOND_STEP_MINUTES = 15;
 
 // Methods that count as the second step. The mail code replaces the password session, so it shows up as 'otp'.
+// The device unlock is not part of the token, see deviceUnlockValid.
 const SECOND_FACTORS = ['otp', 'mfa/webauthn', 'mfa/totp'];
 
 export interface AuthMethod {
@@ -25,4 +26,9 @@ export function trustState(amr: readonly (AuthMethod | string)[], nowMs: number)
   if (nowSeconds - latest(SECOND_FACTORS) < TRUST_DAYS * 86400) return 'trusted';
   if (nowSeconds - latest(['password']) < SECOND_STEP_MINUTES * 60) return 'second-factor';
   return 'none';
+}
+
+// The device unlock is stored per login session (table device_unlocks) and also counts for a week
+export function deviceUnlockValid(verifiedAt: string | null, nowMs: number): boolean {
+  return verifiedAt !== null && nowMs - Date.parse(verifiedAt) < TRUST_DAYS * 86400 * 1000;
 }

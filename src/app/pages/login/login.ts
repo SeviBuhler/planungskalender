@@ -3,29 +3,13 @@ import { Supabase } from '../../services/supabase';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { RouterLink } from '@angular/router'
+import { DeviceUnlock } from '../../features/auth/device-unlock';
 
 type Step = 'credentials' | 'second-factor' | 'code' | 'offer-passkey';
-
-// Supabase's hosted projects don't support WebAuthn as MFA factor yet ("Enabling of MFA with WebAuthn
-// not currently supported"). Switch this on once they do; until then the mail code is the second step.
-const DEVICE_UNLOCK_ENABLED = false;
 
 // When the user said "later" to the device unlock on this device; asked again after 30 days
 const PASSKEY_DECLINED_KEY = 'fortwo.passkeyDeclinedAt';
 const PASSKEY_ASK_AGAIN_MS = 30 * 86400 * 1000;
-
-// Supabase defaults to USB security keys; ask for the device's own unlock instead
-// (Face ID / Touch ID, fingerprint, Windows Hello, device PIN or pattern)
-const DEVICE_UNLOCK_CREATION = {
-  hints: ['client-device'],
-  authenticatorSelection: {
-    authenticatorAttachment: 'platform',
-    userVerification: 'required',
-    residentKey: 'preferred',
-    requireResidentKey: false,
-  },
-} as const;
-const DEVICE_UNLOCK_REQUEST = { hints: ['client-device'], userVerification: 'required' } as const;
 
 @Component({
   selector: 'app-login',
@@ -41,14 +25,14 @@ export class Login implements OnInit {
   step = signal<Step>('credentials');
   busy = signal(false);
   errorText = signal('');
-  // Verified Face ID / passkey factor of this user, if any
-  passkeyFactorId = signal<string | null>(null);
+  // This device has a passkey for the device unlock
+  passkeyHere = signal(false);
   passkeySupported = signal(false);
 
-  constructor(public supabase: Supabase, private router: Router) {}
+  constructor(public supabase: Supabase, private router: Router, private deviceUnlock: DeviceUnlock) {}
 
   async ngOnInit() {
-    this.passkeySupported.set(DEVICE_UNLOCK_ENABLED && await platformAuthenticatorAvailable());
+    this.passkeySupported.set(await this.deviceUnlock.available());
     const state = await this.supabase.trust();
     if (state === 'trusted') {
       this.router.navigate(['/calendar']);
@@ -71,18 +55,17 @@ export class Login implements OnInit {
   private async startSecondFactor() {
     const { data } = await this.supabase.client.auth.getSession();
     this.email = data.session?.user.email ?? this.email;
-    const factors = await this.supabase.client.auth.mfa.listFactors();
-    const passkey = factors.data?.all.find((f) => f.factor_type === 'webauthn' && f.status === 'verified');
-    this.passkeyFactorId.set(passkey?.id ?? null);
+    this.passkeyHere.set(this.deviceUnlock.registeredHere);
     this.step.set('second-factor');
   }
 
   async handlePasskey() {
-    const factorId = this.passkeyFactorId();
-    if (!factorId) return;
     await this.run(async () => {
-      const result = await this.supabase.client.auth.mfa.webauthn.authenticate({ factorId }, DEVICE_UNLOCK_REQUEST as never);
-      if (result.error) throw new Error(`Die Gerätesperre hat nicht geklappt (${result.error.message}). Versuch es nochmals oder nimm den Code per E-Mail.`);
+      try {
+        await this.deviceUnlock.authenticate();
+      } catch (error) {
+        throw new Error(`Die Gerätesperre hat nicht geklappt (${messageOf(error)}). Versuch es nochmals oder nimm den Code per E-Mail.`);
+      }
       this.router.navigate(['/calendar']);
     });
   }
@@ -109,7 +92,7 @@ export class Login implements OnInit {
         type: 'email'
       });
       if (result.error) throw new Error('Der Code stimmt nicht oder ist abgelaufen.');
-      if (this.passkeySupported() && !this.passkeyFactorId() && !passkeyDeclined()) {
+      if (this.passkeySupported() && !this.deviceUnlock.registeredHere && !passkeyDeclined()) {
         this.step.set('offer-passkey');
       } else {
         this.router.navigate(['/calendar']);
@@ -119,11 +102,11 @@ export class Login implements OnInit {
 
   async setupPasskey() {
     await this.run(async () => {
-      const result = await this.supabase.client.auth.mfa.webauthn.register(
-        { friendlyName: `${deviceName()} ${new Date().toLocaleString('de-CH')}` },
-        DEVICE_UNLOCK_CREATION as never
-      );
-      if (result.error) throw new Error(`Die Gerätesperre konnte nicht eingerichtet werden (${result.error.message}). Du kannst dich weiterhin mit dem E-Mail-Code anmelden.`);
+      try {
+        await this.deviceUnlock.register(deviceName());
+      } catch (error) {
+        throw new Error(`Die Gerätesperre konnte nicht eingerichtet werden (${messageOf(error)}). Du kannst dich weiterhin mit dem E-Mail-Code anmelden.`);
+      }
       this.router.navigate(['/calendar']);
     });
   }
@@ -154,12 +137,8 @@ export class Login implements OnInit {
   }
 }
 
-async function platformAuthenticatorAvailable(): Promise<boolean> {
-  try {
-    return typeof PublicKeyCredential !== 'undefined' && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-  } catch {
-    return false;
-  }
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function passkeyDeclined(): boolean {
