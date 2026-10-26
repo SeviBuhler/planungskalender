@@ -72,7 +72,7 @@ describe('Calendar', () => {
 
   it('loads the events of the visible month', () => {
     expect(component.view()).toBe('month');
-    expect(store.ranges[0]).toEqual([new Date(2026, 8, 28), new Date(2026, 10, 2)]);
+    expect(store.ranges[0]).toEqual([new Date(2026, 7, 31), new Date(2026, 11, 7)]);
     expect(component.eventsFor(new Date(2026, 9, 28)).map((e) => e.title)).toEqual(['Zahnarzt']);
   });
 
@@ -105,21 +105,42 @@ describe('Calendar', () => {
     expect(component.date().getMonth()).toBe(10);
   });
 
-  it('lets the page follow the pointer and slides the next page in', () => {
+  it('lets the page follow the pointer and glides to the next page', () => {
     component.onPointerDown(pointer('pointerdown', 300));
     component.onPointerMove(pointer('pointermove', 295));
     expect(component.dragging()).toBe(false); // too small to be a drag
     component.onPointerMove(pointer('pointermove', 220));
     expect(component.dragging()).toBe(true);
-    expect(component.dragX()).toBe(-80);
+    expect(component.trackTransform()).toBe('translateX(calc(-100% + -80px))');
 
     component.onPointerUp(pointer('pointerup', 200));
-    expect(component.dragX()).toBe(0);
-    expect(component.slideClass()).toBe('anim-slide-next');
-    expect(component.pageKey()).toContain('month:');
+    expect(component.date().getMonth()).toBe(10);
+    // the old page (now on the left) stays where the finger left it, then the track glides
+    expect(component.trackTransform()).toBe('translateX(calc(0% + -100px))');
+    expect(component.pages().map((p) => p.offset)).toEqual([-1, 0, 1]);
+    expect(component.pages()[1].monthDays.some((d) => d.inMonth && d.date.getMonth() === 10)).toBe(true);
+  });
 
-    component.previous();
-    expect(component.slideClass()).toBe('anim-slide-prev');
+  it('snaps back after a short slow drag and pages on a quick flick', () => {
+    const at = (type: string, x: number, timeStamp: number) => ({ clientX: x, clientY: 0, type, timeStamp }) as PointerEvent;
+    component.onPointerDown(at('pointerdown', 300, 0));
+    component.onPointerMove(at('pointermove', 270, 400));
+    component.onPointerUp(at('pointerup', 270, 800));
+    expect(component.date().getMonth()).toBe(9);
+    expect(component.dragX()).toBe(0);
+
+    component.onPointerDown(at('pointerdown', 300, 1000));
+    component.onPointerMove(at('pointermove', 290, 1010));
+    component.onPointerMove(at('pointermove', 270, 1030)); // 1 px per ms
+    component.onPointerUp(at('pointerup', 270, 1035));
+    expect(component.date().getMonth()).toBe(10);
+  });
+
+  it('loads the events of the neighbouring pages too', async () => {
+    component.openDay(new Date(2026, 9, 28));
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(store.ranges.at(-1)).toEqual([new Date(2026, 9, 27), new Date(2026, 9, 30)]);
   });
 
   it('creates a timed event in a household with the calendar module', async () => {

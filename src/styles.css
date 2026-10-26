@@ -11,8 +11,6 @@
 @keyframes sheet-out { to { transform: translateY(100%); } }
 @keyframes drop-in { from { opacity: 0; transform: translateY(-6px) scale(0.98); } }
 @keyframes drop-out { to { opacity: 0; transform: translateY(-4px) scale(0.98); } }
-@keyframes slide-from-right { from { opacity: 0.2; transform: translateX(28%); } }
-@keyframes slide-from-left { from { opacity: 0.2; transform: translateX(-28%); } }
 
 .anim-fade-in { animation: fade-in 200ms ease-out; }
 .anim-fade-out { animation: fade-out 160ms ease-in forwards; }
@@ -26,8 +24,6 @@
 .anim-pop-in { animation: pop-in 240ms cubic-bezier(0.22, 1, 0.36, 1); }
 .anim-drop-in { animation: drop-in 180ms cubic-bezier(0.22, 1, 0.36, 1); transform-origin: top; }
 .anim-drop-out { animation: drop-out 120ms ease-in forwards; transform-origin: top; }
-.anim-slide-next { animation: slide-from-right 260ms cubic-bezier(0.22, 1, 0.36, 1); }
-.anim-slide-prev { animation: slide-from-left 260ms cubic-bezier(0.22, 1, 0.36, 1); }
 
 @media (prefers-reduced-motion: reduce) {
   [class*='anim-'] { animation-duration: 1ms !important; }

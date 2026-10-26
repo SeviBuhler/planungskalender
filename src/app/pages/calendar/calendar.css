@@ -1,4 +1,7 @@
-/* Keeps vertical scrolling while horizontal swipes change the date */
-.swipe-area {
-  touch-action: pan-y;
+/* Keeps vertical scrolling while horizontal swipes change the date. Set on every
+   descendant too: scroll containers inside (day view) would otherwise let the
+   browser take over horizontal moves and cancel the swipe on touch screens. */
+.swipe-area,
+.swipe-area * {
+  touch-action: pan-y pinch-zoom;
 }
