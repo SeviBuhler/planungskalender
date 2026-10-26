@@ -2,13 +2,18 @@ import { Component, OnDestroy, computed, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MonthBudget, NOVEMBER_2026, allocate, carryOver, expenseTotal, nextMonth } from '../../features/finance/allocate';
-import { BudgetStore, Household } from '../../features/finance/budget-store';
+import { BudgetStore, FinancePlan, Household } from '../../features/finance/budget-store';
 
 type ListKey = 'expenses' | 'debts' | 'savings';
-type ViewState = 'loading' | 'setup' | 'ready' | 'error';
+type ViewState = 'loading' | 'empty' | 'ready' | 'error';
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
+type Panel = 'none' | 'new' | 'settings';
+
+// 'private', the id of an existing household, 'new' (create one) or 'join' (invite code)
+type HouseholdChoice = string;
 
 const SAVE_DELAY_MS = 600;
+const SELECTED_PLAN_KEY = 'financeSelectedPlan';
 
 function previousMonth(month: string): string {
   const [year, m] = month.split('-').map(Number);
@@ -27,6 +32,22 @@ function errorMessage(error: unknown): string {
     : 'Unbekannter Fehler';
 }
 
+function rememberPlan(id: string) {
+  try {
+    localStorage.setItem(SELECTED_PLAN_KEY, id);
+  } catch {
+    // storage unavailable: the first plan opens next time
+  }
+}
+
+function rememberedPlan(): string | null {
+  try {
+    return localStorage.getItem(SELECTED_PLAN_KEY);
+  } catch {
+    return null;
+  }
+}
+
 @Component({
   selector: 'app-finance',
   imports: [FormsModule, RouterLink],
@@ -37,8 +58,22 @@ export class Finance implements OnDestroy {
   readonly state = signal<ViewState>('loading');
   readonly saveState = signal<SaveState>('idle');
   readonly errorText = signal('');
-  readonly household = signal<Household | null>(null);
+  readonly panel = signal<Panel>('none');
+
+  readonly plans = signal<FinancePlan[]>([]);
+  readonly households = signal<Household[]>([]);
+  readonly userId = signal<string | null>(null);
+  readonly plan = signal<FinancePlan | null>(null);
+
+  readonly planHousehold = computed(() => this.householdOf(this.plan()));
+  readonly isOwner = computed(() => this.plan()?.ownerId === this.userId());
+
+  // Form fields for "Neuer Plan" and the plan settings
+  planName = '';
+  householdChoice: HouseholdChoice = 'private';
+  newHouseholdName = '';
   inviteCode = '';
+  useTemplate = false;
 
   readonly budget = signal<MonthBudget>(structuredClone(NOVEMBER_2026));
   readonly result = computed(() => allocate(this.budget()));
@@ -64,54 +99,157 @@ export class Finance implements OnDestroy {
     return value.toLocaleString('de-CH', { maximumFractionDigits: 2 });
   }
 
+  householdOf(plan: FinancePlan | null): Household | null {
+    return this.households().find((h) => h.id === plan?.householdId) ?? null;
+  }
+
+  planLabel(plan: FinancePlan): string {
+    const household = this.householdOf(plan);
+    return `${plan.name} · ${household ? household.name : 'Privat'}`;
+  }
+
   private async init() {
     try {
-      const household = await this.store.loadHousehold();
-      if (!household) {
-        this.state.set('setup');
+      const [userId] = await Promise.all([this.store.userId(), this.reloadLists()]);
+      this.userId.set(userId);
+      const plans = this.plans();
+      if (plans.length === 0) {
+        this.openNewPlan();
+        this.state.set('empty');
         return;
       }
-      await this.useHousehold(household);
+      await this.selectPlan(plans.find((p) => p.id === rememberedPlan())?.id ?? plans[0].id);
     } catch (error) {
       this.fail(error);
     }
   }
 
-  private async useHousehold(household: Household) {
-    this.household.set(household);
-    // The plan starts with November 2026, the first month taken over from the Excel file
-    const month = currentMonth() < NOVEMBER_2026.month ? NOVEMBER_2026.month : currentMonth();
-    await this.openMonth(month);
+  private async reloadLists() {
+    const [plans, households] = await Promise.all([this.store.listPlans(), this.store.listHouseholds()]);
+    this.plans.set(plans);
+    this.households.set(households);
   }
 
-  async createHousehold() {
-    await this.runSetup(() => this.store.createHousehold());
+  async selectPlan(id: string) {
+    const plan = this.plans().find((p) => p.id === id);
+    if (!plan) return;
+    await this.flushSave();
+    this.plan.set(plan);
+    this.panel.set('none');
+    rememberPlan(plan.id);
+    try {
+      // Open the newest month that has data, so a plan opens where it was left
+      await this.openMonth((await this.store.latestMonth(plan.id)) ?? currentMonth());
+    } catch (error) {
+      this.fail(error);
+    }
   }
 
-  async joinHousehold() {
-    if (!this.inviteCode.trim()) return;
-    await this.runSetup(() => this.store.joinHousehold(this.inviteCode));
+  openNewPlan() {
+    this.planName = '';
+    this.householdChoice = 'private';
+    this.newHouseholdName = '';
+    this.inviteCode = '';
+    this.useTemplate = false;
+    this.errorText.set('');
+    this.panel.set('new');
   }
 
-  private async runSetup(action: () => Promise<Household>) {
+  openSettings() {
+    const plan = this.plan();
+    if (!plan) return;
+    this.planName = plan.name;
+    this.householdChoice = plan.householdId ?? 'private';
+    this.newHouseholdName = '';
+    this.inviteCode = '';
+    this.errorText.set('');
+    this.panel.set('settings');
+  }
+
+  closePanel() {
+    this.errorText.set('');
+    this.panel.set('none');
+  }
+
+  // Turns the household choice of the form into a household id, creating or joining one if needed
+  private async chosenHousehold(): Promise<string | null> {
+    switch (this.householdChoice) {
+      case 'private':
+        return null;
+      case 'new':
+        return (await this.store.createHousehold(this.newHouseholdName)).id;
+      case 'join':
+        if (!this.inviteCode.trim()) throw new Error('Bitte Einladungscode eingeben');
+        return (await this.store.joinHousehold(this.inviteCode)).id;
+      default:
+        return this.householdChoice;
+    }
+  }
+
+  async createPlan() {
+    if (!this.planName.trim()) {
+      this.errorText.set('Bitte einen Namen eingeben');
+      return;
+    }
     this.errorText.set('');
     try {
-      await this.useHousehold(await action());
+      const plan = await this.store.createPlan(this.planName.trim(), await this.chosenHousehold());
+      if (this.useTemplate) {
+        await this.store.save(plan.id, structuredClone(NOVEMBER_2026));
+      }
+      await this.reloadLists();
+      await this.selectPlan(plan.id);
+    } catch (error) {
+      this.errorText.set(errorMessage(error));
+    }
+  }
+
+  async saveSettings() {
+    const plan = this.plan();
+    if (!plan || !this.planName.trim()) return;
+    this.errorText.set('');
+    try {
+      const householdId = await this.chosenHousehold();
+      await this.store.updatePlan(plan.id, { name: this.planName.trim(), householdId });
+      await this.reloadLists();
+      this.plan.set(this.plans().find((p) => p.id === plan.id) ?? null);
+      this.panel.set('none');
+    } catch (error) {
+      this.errorText.set(errorMessage(error));
+    }
+  }
+
+  async deletePlan() {
+    const plan = this.plan();
+    if (!plan || !confirm(`Plan „${plan.name}“ mit allen Monaten löschen?`)) return;
+    clearTimeout(this.saveTimer);
+    this.saveTimer = undefined;
+    try {
+      await this.store.deletePlan(plan.id);
+      await this.reloadLists();
+      this.plan.set(null);
+      const next = this.plans()[0];
+      if (next) {
+        await this.selectPlan(next.id);
+      } else {
+        this.openNewPlan();
+        this.state.set('empty');
+      }
     } catch (error) {
       this.errorText.set(errorMessage(error));
     }
   }
 
   async openMonth(month: string) {
-    const household = this.household();
-    if (!household) return;
+    const plan = this.plan();
+    if (!plan) return;
     await this.flushSave();
     const token = ++this.loadToken;
     if (this.state() !== 'ready') this.state.set('loading');
 
     try {
-      const budget = await this.findBudget(household.id, month);
-      if (token !== this.loadToken) return; // a newer month was opened meanwhile
+      const budget = await this.findBudget(plan.id, month);
+      if (token !== this.loadToken) return; // a newer month or plan was opened meanwhile
       this.budget.set(budget);
       this.saveState.set('idle');
       this.state.set('ready');
@@ -120,31 +258,30 @@ export class Finance implements OnDestroy {
     }
   }
 
-  private async findBudget(householdId: string, month: string): Promise<MonthBudget> {
-    const stored = await this.store.load(householdId, month);
+  private async findBudget(planId: string, month: string): Promise<MonthBudget> {
+    const stored = await this.store.load(planId, month);
     if (stored) return stored;
 
     // Take over a plan that was saved in this browser before, so nothing gets lost
     const legacy = this.store.loadLegacy(month);
     if (legacy) {
-      await this.store.save(householdId, legacy);
+      await this.store.save(planId, legacy);
       this.store.removeLegacy(month);
       return legacy;
     }
 
-    // No plan yet: carry over from the previous month if there is one
-    const previous = (await this.store.load(householdId, previousMonth(month))) ?? this.store.loadLegacy(previousMonth(month));
+    // No data yet: carry over from the previous month if there is one
+    const previous = await this.store.load(planId, previousMonth(month));
     if (previous) return { ...carryOver(previous), month };
-    if (month === NOVEMBER_2026.month) return structuredClone(NOVEMBER_2026);
     return { month, startBalance: 0, income: 0, expenses: [], debts: [], savings: [] };
   }
 
   goToPreviousMonth() {
-    this.openMonth(previousMonth(this.budget().month));
+    return this.openMonth(previousMonth(this.budget().month));
   }
 
   goToNextMonth() {
-    this.openMonth(nextMonth(this.budget().month));
+    return this.openMonth(nextMonth(this.budget().month));
   }
 
   private edit(change: (budget: MonthBudget) => MonthBudget) {
@@ -158,10 +295,10 @@ export class Finance implements OnDestroy {
     if (this.saveTimer === undefined) return;
     clearTimeout(this.saveTimer);
     this.saveTimer = undefined;
-    const household = this.household();
-    if (!household) return;
+    const plan = this.plan();
+    if (!plan) return;
     try {
-      await this.store.save(household.id, this.budget());
+      await this.store.save(plan.id, this.budget());
       this.saveState.set('saved');
     } catch (error) {
       this.saveState.set('error');
