@@ -1,4 +1,4 @@
-import { trustState } from './trust';
+import { deviceUnlockValid, trustState } from './trust';
 
 const NOW = Date.UTC(2026, 9, 26, 12);
 const ago = (seconds: number) => NOW / 1000 - seconds;
@@ -26,5 +26,13 @@ describe('trustState', () => {
     expect(trustState([{ method: 'password', timestamp: ago(20 * 60) }], NOW)).toBe('none');
     expect(trustState([], NOW)).toBe('none');
     expect(trustState(['password', 'otp'], NOW)).toBe('none');
+  });
+});
+
+describe('deviceUnlockValid', () => {
+  it('trusts a device unlock for a week', () => {
+    expect(deviceUnlockValid(new Date(NOW - 6 * DAY * 1000).toISOString(), NOW)).toBe(true);
+    expect(deviceUnlockValid(new Date(NOW - 8 * DAY * 1000).toISOString(), NOW)).toBe(false);
+    expect(deviceUnlockValid(null, NOW)).toBe(false);
   });
 });

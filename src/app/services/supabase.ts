@@ -1,7 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 import { createClient, SupabaseClient, Session } from '@supabase/supabase-js';
 import { environment } from '../../environments/environments';
-import { TrustState, trustState } from '../features/auth/trust';
+import { TrustState, deviceUnlockValid, trustState } from '../features/auth/trust';
 
 @Injectable({
     providedIn: 'root'
@@ -38,9 +38,17 @@ export class Supabase {
         const { data: { session } } = await this.supabase.auth.getSession();
         if (!session) return 'none';
         const { data } = await this.supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-        const state = trustState(data?.currentAuthenticationMethods ?? [], Date.now());
+        const now = Date.now();
+        let state = trustState(data?.currentAuthenticationMethods ?? [], now);
+        if (state !== 'trusted' && deviceUnlockValid(await this.deviceUnlockedAt(), now)) state = 'trusted';
         if (state === 'none') await this.supabase.auth.signOut({ scope: 'local' });
         return state;
+    }
+
+    // When the device unlock confirmed the current login (row only visible for the current session)
+    private async deviceUnlockedAt(): Promise<string | null> {
+        const { data, error } = await this.supabase.from('device_unlocks').select('verified_at').maybeSingle();
+        return error ? null : data?.verified_at ?? null;
     }
 }
 
