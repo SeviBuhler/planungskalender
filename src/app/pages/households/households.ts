@@ -1,8 +1,8 @@
 import { Component, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { Household, HouseholdModule, HouseholdStore, MODULES } from '../../features/households/household-store';
 import { ConfirmService } from '../../components/confirm/confirm';
+import { PageHeader } from '../../components/page-header/page-header';
 
 function errorMessage(error: unknown): string {
   return typeof error === 'object' && error !== null && 'message' in error
@@ -12,7 +12,7 @@ function errorMessage(error: unknown): string {
 
 @Component({
   selector: 'app-households',
-  imports: [FormsModule, RouterLink],
+  imports: [PageHeader, FormsModule],
   templateUrl: './households.html',
   styleUrl: './households.css',
 })

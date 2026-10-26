@@ -1,6 +1,5 @@
 import { Component, computed, effect, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
 import { Supabase } from '../../services/supabase';
 import {
   CalendarEvent,
@@ -22,6 +21,7 @@ import { Household, HouseholdStore } from '../../features/households/household-s
 import { ConfirmService } from '../../components/confirm/confirm';
 import { Select, SelectOption } from '../../components/select/select';
 import { SubscribeDialog } from './subscribe-dialog';
+import { PageHeader } from '../../components/page-header/page-header';
 
 const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 const SWIPE_MIN_PX = 60;
@@ -71,7 +71,7 @@ function errorMessage(error: unknown): string {
 
 @Component({
   selector: 'app-calendar',
-  imports: [FormsModule, RouterLink, Select, SubscribeDialog],
+  imports: [PageHeader, FormsModule, Select, SubscribeDialog],
   templateUrl: './calendar.html',
   styleUrl: './calendar.css',
 })
@@ -159,7 +159,6 @@ export class Calendar {
 
   constructor(
     public supabase: Supabase,
-    private router: Router,
     private store: CalendarStore,
     private householdStore: HouseholdStore,
     private confirm: ConfirmService
@@ -480,14 +479,6 @@ export class Calendar {
       await this.reload();
     } catch (error) {
       this.errorText.set(errorMessage(error));
-    }
-  }
-
-  async handleLogout() {
-    const result = await this.supabase.client.auth.signOut()
-
-    if (!result.error) {
-      this.router.navigate(['/login'])
     }
   }
 }
