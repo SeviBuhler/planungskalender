@@ -10,7 +10,8 @@ import { Household, HouseholdStore } from '../../features/households/household-s
 import { ConfirmService } from '../../components/confirm/confirm';
 import { Select, SelectOption } from '../../components/select/select';
 import { IconButton } from '../../components/icon-button/icon-button';
-import { PageHeader } from '../../components/page-header/page-header';
+import { GLASS, PageHeader } from '../../components/page-header/page-header';
+import { TitleOption, TitlePicker } from '../../components/title-picker/title-picker';
 
 type ViewState = 'loading' | 'empty' | 'ready' | 'error';
 type Panel = 'none' | 'new' | 'settings';
@@ -53,7 +54,7 @@ function optional(text: string): string | null {
 
 @Component({
   selector: 'app-shopping',
-  imports: [PageHeader, FormsModule, NgTemplateOutlet, RouterLink, Select, StoreDeals, IconButton],
+  imports: [PageHeader, TitlePicker, FormsModule, NgTemplateOutlet, RouterLink, Select, StoreDeals, IconButton],
   templateUrl: './shopping.html',
 })
 export class Shopping implements OnDestroy {
@@ -73,6 +74,18 @@ export class Shopping implements OnDestroy {
   readonly list = signal<ShoppingList | null>(null);
   readonly listHousehold = computed(() => this.householdOf(this.list()));
   readonly isOwner = computed(() => this.list()?.ownerId === this.userId());
+  readonly glass = GLASS;
+  readonly listTitles = computed<TitleOption[]>(() =>
+    this.lists().map((l) => {
+      const household = this.householdOf(l);
+      return { value: l.id, label: l.name, sub: household ? household.name : 'Privat', shared: !!household };
+    })
+  );
+  // Phones switch between the list and the deals with two tabs
+  readonly tabs = [
+    { deals: false, label: 'Liste', icon: 'M3 4h2l2.2 10.5a2 2 0 0 0 2 1.5h7.6a2 2 0 0 0 2-1.5L20.5 8H6M10 20h.01M17 20h.01' },
+    { deals: true, label: 'Läden & Aktionen', icon: 'M3 12V4.5A1.5 1.5 0 0 1 4.5 3H12l9 9-9 9-9-9zM7.5 7.5h.01' },
+  ];
 
   readonly items = signal<ShoppingItem[]>([]);
   readonly openItems = computed(() => this.items().filter((i) => !i.checked));

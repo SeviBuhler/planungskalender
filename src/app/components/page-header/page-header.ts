@@ -32,6 +32,8 @@ const MENU = [
 
 const BUTTON = 'px-4 py-2 rounded-lg shadow-2xl hover:bg-fuchsia-500 text-white dark:text-sky-100';
 const ITEM = 'flex w-full items-center gap-3 px-3 py-2.5 md:py-2 rounded-lg text-left transition-colors hover:bg-indigo-50 focus:outline-none focus-visible:bg-indigo-50 dark:hover:bg-indigo-800 dark:focus-visible:bg-indigo-800';
+// For a page's own [menuItems] entries, which only phones list there
+export const PHONE_MENU_ITEM = ITEM + ' md:hidden';
 // Frosted glass for the floating phone controls; content stays faintly visible behind them
 export const GLASS = 'bg-white/70 backdrop-blur-xl backdrop-saturate-150 shadow-[0_8px_28px_rgba(37,19,77,0.22)] ring-1 ring-white/60 dark:bg-indigo-950/70 dark:ring-white/10';
 
@@ -47,10 +49,14 @@ export const GLASS = 'bg-white/70 backdrop-blur-xl backdrop-saturate-150 shadow-
     '(document:keydown.escape)': 'close(true)',
   },
   template: `
-    <header class="relative z-30 flex flex-wrap items-center justify-between gap-3 mb-4">
+    <header class="relative z-30 flex flex-wrap max-md:flex-nowrap items-center justify-between gap-3 mb-4">
       <h1 class="flex min-w-0 items-center gap-2 font-bold text-2xl md:text-4xl text-[#25134D] dark:text-sky-100">
         <img class="h-6 md:h-8 w-auto" src="icons/fortwo-mark.svg" alt="ForTwo" />
-        <span class="truncate md:hidden">{{ mobileTitle() ?? title() }}</span><span class="hidden md:inline">{{ title() }}</span>
+        @if (customTitle()) {
+          <span class="flex min-w-0 md:hidden"><ng-content select="[mobileTitle]" /></span>
+        } @else {
+          <span class="truncate md:hidden">{{ mobileTitle() ?? title() }}</span>
+        }<span class="hidden md:inline">{{ title() }}</span>
       </h1>
       <div class="flex items-center gap-2 md:hidden"><ng-content select="[headerActions]" /></div>
       <nav class="hidden md:flex flex-wrap items-center gap-2">
@@ -125,6 +131,8 @@ export class PageHeader {
   readonly title = input.required<string>();
   // Shorter or more specific title for phones (the calendar shows the month there)
   readonly mobileTitle = input<string | null>(null);
+  // The page puts its own phone title into [mobileTitle], e.g. a picker
+  readonly customTitle = input(false);
   // Shows the round add button next to the phone bar
   readonly addLabel = input<string | null>(null);
   readonly add = output<void>();
