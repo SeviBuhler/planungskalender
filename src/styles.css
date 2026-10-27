@@ -60,15 +60,7 @@
 html:has(.dialog-backdrop),
 html:has(.dialog-backdrop) body { overflow: hidden; }
 
-/* iPhone app: the page runs under the status bar (viewport-fit=cover, black-translucent), so the top
-   gets a solid strip exactly as tall as the status bar instead of Safari's wide fade */
-body { padding-top: env(safe-area-inset-top); }
-.min-h-screen { min-height: calc(100vh - env(safe-area-inset-top)); }
-.status-strip {
-  position: fixed;
-  inset: 0 0 auto;
-  z-index: 80;
-  height: env(safe-area-inset-top);
-  background: #7040E8;
-}
-.dark .status-strip { background: #25134D; }
+/* iPhone app: iOS fills the status bar area with the page background and fades it into the content.
+   Matching the app's background colour hides that fade. */
+html { background-color: var(--color-gray-300); }
+html.dark { background-color: var(--color-gray-800); color-scheme: dark; }
