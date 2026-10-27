@@ -106,6 +106,21 @@ function supabaseHeaders(key) {
   return headers;
 }
 
+// The public key (sb_publishable_ or the legacy anon JWT) can only read; caught before the long download
+export function keyProblem(key) {
+  if (!key) return 'SUPABASE_SERVICE_ROLE_KEY fehlt';
+  if (key.startsWith('sb_publishable_')) return 'Das ist der öffentliche Schlüssel (sb_publishable_). Nötig ist der geheime (sb_secret_).';
+  if (key.startsWith('eyJ')) {
+    try {
+      const role = JSON.parse(Buffer.from(key.split('.')[1], 'base64url').toString('utf8')).role;
+      if (role !== 'service_role') return `Das ist der Schlüssel mit der Rolle "${role}". Nötig ist service_role.`;
+    } catch {
+      return 'Der Schlüssel ist kein gültiges JWT';
+    }
+  }
+  return null;
+}
+
 async function request(url, init, attempts = 3) {
   for (let attempt = 1; ; attempt++) {
     const response = await fetch(url, init);
@@ -143,8 +158,14 @@ async function upload(rows) {
 }
 
 async function main() {
+  const dryRun = process.argv.includes('--dry-run');
+  if (!dryRun) {
+    if (!process.env.SUPABASE_URL) throw new Error('SUPABASE_URL fehlt');
+    const problem = keyProblem(process.env.SUPABASE_SERVICE_ROLE_KEY);
+    if (problem) throw new Error(`SUPABASE_SERVICE_ROLE_KEY: ${problem}`);
+  }
   const rows = await readProducts();
-  if (process.argv.includes('--dry-run')) {
+  if (dryRun) {
     console.log(JSON.stringify(rows.slice(0, 3), null, 2));
     return;
   }
