@@ -6,6 +6,8 @@ import { ShoppingItem, ShoppingList, ShoppingStore } from '../../features/shoppi
 import { Household, HouseholdStore } from '../../features/households/household-store';
 import { ConfirmService } from '../../components/confirm/confirm';
 import { Product, ProductSearch } from '../../features/shopping/product-search';
+import { signal } from '@angular/core';
+import { Chain, ChainResult, PriceState, StorePrices, priceKey } from '../../features/shopping/store-prices';
 
 const ME = 'user-a';
 
@@ -71,10 +73,34 @@ const VOLLMILCH: Product = {
   imageUrl: 'https://images.openfoodfacts.org/images/products/761/340/411/0285/front_de.3.200.jpg',
 };
 
+class FakeStorePrices {
+  chains = signal<Chain[]>([]);
+  prices = signal<ReadonlyMap<string, PriceState>>(new Map());
+  requested: string[][] = [];
+  promotionResults: ChainResult[] = [];
+  async loadChains() {
+    return this.chains();
+  }
+  async saveChains(chains: Chain[]) {
+    this.chains.set(chains);
+  }
+  request(names: string[]) {
+    this.requested.push(names);
+  }
+  async promotions() {
+    return this.promotionResults;
+  }
+  setPrices(name: string, results: ChainResult[]) {
+    this.prices.set(new Map([...this.prices(), [priceKey(name), { status: 'done', results }]]));
+  }
+}
+
 class FakeProductSearch {
   terms: string[] = [];
+  fail = false;
   async search(term: string) {
     this.terms.push(term);
+    if (this.fail) throw new Error('offline');
     return term.toLowerCase().startsWith('mil') ? [VOLLMILCH] : [];
   }
 }
@@ -82,6 +108,7 @@ class FakeProductSearch {
 describe('Shopping', () => {
   let store: FakeShoppingStore;
   let products: FakeProductSearch;
+  let storePrices: FakeStorePrices;
   let households: FakeHouseholdStore;
   let fixture: ComponentFixture<Shopping>;
   let component: Shopping;
@@ -94,6 +121,7 @@ describe('Shopping', () => {
         { provide: ShoppingStore, useValue: store },
         { provide: HouseholdStore, useValue: households },
         { provide: ProductSearch, useValue: products },
+        { provide: StorePrices, useValue: storePrices },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(Shopping);
@@ -112,6 +140,7 @@ describe('Shopping', () => {
     store = new FakeShoppingStore();
     households = new FakeHouseholdStore();
     products = new FakeProductSearch();
+    storePrices = new FakeStorePrices();
   });
 
   it('asks for a first list when there is none', async () => {
@@ -220,6 +249,24 @@ describe('Shopping', () => {
     expect(store.lists[0].householdId).toBe('h1');
   });
 
+  it('says when the product search is not reachable and keeps the own suggestions', async () => {
+    await create();
+    component.suggestions.set(['Milchreis']);
+    products.fail = true;
+    vi.useFakeTimers();
+    try {
+      component.onNameInput('milc');
+      await vi.advanceTimersByTimeAsync(500);
+      expect(component.searchFailed()).toBe(true);
+      expect(component.showSuggestions()).toBe(true);
+      expect(component.suggestionRows()).toEqual([{ kind: 'own', name: 'Milchreis' }]);
+      component.onNameInput('milch');
+      expect(component.searchFailed()).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('suggests own items and Open Food Facts products while typing', async () => {
     store.lists = [{ id: 'l1', name: 'Einkauf', ownerId: ME, householdId: null }];
     await create();
@@ -261,5 +308,50 @@ describe('Shopping', () => {
     await component.saveEdit(component.openItems()[0]);
     expect(component.openItems()[0]).toMatchObject({ name: 'Hafermilch', imageUrl: null, productCode: null });
     expect(store.items[0].imageUrl).toBeNull();
+  });
+
+  it('shows the cheapest store price per item and the prices of all stores on click', async () => {
+    await create();
+    component.listName = 'Wocheneinkauf';
+    await component.createList();
+    await add('Milch');
+    await add('Brot');
+    fixture.detectChanges();
+    // Without chosen stores nothing is searched
+    expect(storePrices.requested).toEqual([]);
+
+    storePrices.chains.set(['migros', 'aldi']);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(storePrices.requested.at(-1)).toEqual(['Milch', 'Brot']);
+
+    const milk = (price: number, chain: Chain, promotion: string | null = null) => ({
+      chain, id: chain, name: 'Vollmilch', brand: null, size: '1 l', price, regularPrice: null, promotion, validUntil: null, imageUrl: null, url: null,
+    });
+    storePrices.setPrices('Milch', [
+      { chain: 'migros', products: [milk(1.85, 'migros')] },
+      { chain: 'aldi', products: [milk(1.49, 'aldi', '-20%')] },
+    ]);
+    fixture.detectChanges();
+    const item = component.openItems().find((i) => i.name === 'Milch')!;
+    expect(component.bestPrice(item)?.chain).toBe('aldi');
+    const button: HTMLButtonElement = fixture.nativeElement.querySelector('[aria-label="Preise für Milch"]');
+    expect(button.textContent).toContain('1.49');
+    expect(button.textContent).toContain('Aldi');
+    expect(button.textContent).toContain('Aktion');
+
+    button.click();
+    fixture.detectChanges();
+    const details: string = fixture.nativeElement.textContent;
+    expect(details).toContain('1.85');
+    expect(details).toContain('ohne Gewähr');
+  });
+
+  it('adds a promotion to the list', async () => {
+    await create();
+    component.listName = 'Wocheneinkauf';
+    await component.createList();
+    await component.addFromDeal('Rohschinken');
+    expect(component.openItems().map((i) => i.name)).toEqual(['Rohschinken']);
   });
 });

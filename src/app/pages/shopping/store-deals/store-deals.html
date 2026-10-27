@@ -1,0 +1,76 @@
+<section animate.enter="anim-pop-in" class="mb-4 rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-4 md:p-6 flex flex-col gap-4">
+    <div class="flex items-start justify-between gap-2">
+        <div>
+            <h2 class="font-semibold text-xl">Läden &amp; Aktionen</h2>
+            <p class="text-xs text-gray-600">Preise und Aktionen von den Websites und Apps der Läden, ohne Gewähr.</p>
+        </div>
+        <button class="px-3 py-1 rounded-lg hover:bg-gray-300" (click)="close.emit()" aria-label="Schliessen">✕</button>
+    </div>
+
+    <fieldset class="flex flex-col gap-2 text-sm">
+        <legend class="mb-1">Wo kaufst du ein?</legend>
+        <div class="flex flex-wrap gap-2">
+            @for (c of allChains; track c.id) {
+                <button type="button" class="px-3 py-1.5 rounded-full border text-left" [attr.aria-pressed]="chosen(c.id)"
+                        [class]="chosen(c.id) ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-300 hover:bg-fuchsia-100'"
+                        (click)="toggleChain(c.id)">
+                    {{ c.label }} <span class="text-xs opacity-75">· {{ c.note }}</span>
+                </button>
+            }
+        </div>
+        <p class="text-xs text-gray-600">Coop, Volg und weitere Läden folgen.</p>
+    </fieldset>
+
+    @if (errorText()) {
+        <p class="p-2 rounded bg-red-200 text-red-900 text-sm">{{ errorText() }}</p>
+    }
+
+    @if (stores.chains().length > 0) {
+        <div class="flex flex-col gap-2">
+            <div class="flex flex-wrap gap-2">
+                <input class="flex-1 min-w-40 p-2 rounded bg-white" [ngModel]="filter()" (ngModelChange)="filter.set($event)" placeholder="Aktionen durchsuchen" aria-label="Aktionen durchsuchen" />
+                <select class="p-2 rounded bg-white" [ngModel]="chainFilter()" (ngModelChange)="chainFilter.set($event)" aria-label="Laden">
+                    <option value="all">Alle Läden</option>
+                    @for (c of stores.chains(); track c) {
+                        <option [value]="c">{{ label(c) }}</option>
+                    }
+                </select>
+            </div>
+            @if (failedChains().length > 0) {
+                <p class="text-xs text-amber-800">Gerade nicht erreichbar: {{ failedChains().join(', ') }}</p>
+            }
+            @if (loading()) {
+                <p class="py-4 text-center text-sm">Lade Aktionen…</p>
+            } @else if (deals().length === 0) {
+                <p class="py-4 text-center text-sm text-gray-600">Keine Aktionen gefunden.</p>
+            } @else {
+                <ul class="flex flex-col max-h-[28rem] overflow-y-auto">
+                    @for (deal of deals(); track deal.chain + deal.id) {
+                        <li class="flex items-center gap-3 py-1.5 border-b border-gray-200 last:border-b-0">
+                            @if (deal.imageUrl) {
+                                <img class="size-12 shrink-0 rounded-lg object-contain bg-white" [src]="deal.imageUrl" alt="" loading="lazy" referrerpolicy="no-referrer" />
+                            } @else {
+                                <span class="size-12 shrink-0 rounded-lg bg-white" aria-hidden="true"></span>
+                            }
+                            <span class="flex-1 min-w-0 flex flex-col">
+                                <span class="truncate">{{ deal.name }}</span>
+                                <span class="truncate text-xs text-gray-600">
+                                    {{ label(deal.chain) }}@if (deal.size) { · {{ deal.size }}}@if (until(deal.validUntil)) { · {{ until(deal.validUntil) }}}
+                                </span>
+                            </span>
+                            <span class="shrink-0 flex flex-col items-end text-sm">
+                                <span class="font-semibold">{{ price(deal.price) }}</span>
+                                @if (deal.promotion) {
+                                    <span class="px-1.5 rounded bg-red-600 text-white text-xs">{{ deal.promotion }}</span>
+                                }
+                            </span>
+                            <button class="shrink-0 px-2 py-1 rounded-lg bg-indigo-600 hover:bg-fuchsia-500 text-white" (click)="add.emit(deal.name)" [attr.aria-label]="deal.name + ' auf die Liste'">+</button>
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
+    } @else {
+        <p class="text-sm text-gray-600">Wähl deine Läden, dann siehst du hier ihre Aktionen und bei jedem Artikel den günstigsten Preis.</p>
+    }
+</section>

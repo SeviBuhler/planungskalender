@@ -4,6 +4,8 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ShoppingItem, ShoppingList, ShoppingStore } from '../../features/shopping/shopping-store';
 import { MIN_SEARCH_LENGTH, Product, ProductSearch } from '../../features/shopping/product-search';
+import { PriceState, StorePrices, StoreProduct, chainLabel, cheapest, formatPrice, priceKey } from '../../features/shopping/store-prices';
+import { StoreDeals } from './store-deals/store-deals';
 import { Household, HouseholdStore } from '../../features/households/household-store';
 import { ConfirmService } from '../../components/confirm/confirm';
 import { Select, SelectOption } from '../../components/select/select';
@@ -15,8 +17,8 @@ type Panel = 'none' | 'new' | 'settings';
 const SELECTED_LIST_KEY = 'shoppingSelectedList';
 // Several changes from one save arrive close together; reload once
 const RELOAD_DELAY_MS = 150;
-// Search Open Food Facts once typing pauses, not on every key
-const SEARCH_DELAY_MS = 400;
+// Search the product table once typing pauses, not on every key
+const SEARCH_DELAY_MS = 250;
 const OWN_SUGGESTIONS = 4;
 
 // One row of the dropdown under the item input: an item typed before or a product
@@ -50,7 +52,7 @@ function optional(text: string): string | null {
 
 @Component({
   selector: 'app-shopping',
-  imports: [PageHeader, FormsModule, NgTemplateOutlet, RouterLink, Select],
+  imports: [PageHeader, FormsModule, NgTemplateOutlet, RouterLink, Select, StoreDeals],
   templateUrl: './shopping.html',
 })
 export class Shopping implements OnDestroy {
@@ -85,6 +87,7 @@ export class Shopping implements OnDestroy {
   private readonly query = signal('');
   readonly products = signal<Product[]>([]);
   readonly searching = signal(false);
+  readonly searchFailed = signal(false);
   readonly suggestOpen = signal(false);
   readonly activeSuggestion = signal(-1);
   readonly suggestionRows = computed<Suggestion[]>(() => {
@@ -96,7 +99,13 @@ export class Shopping implements OnDestroy {
       .map((name): Suggestion => ({ kind: 'own', name }));
     return [...own, ...this.products().map((product): Suggestion => ({ kind: 'product', product }))];
   });
-  readonly showSuggestions = computed(() => this.suggestOpen() && (this.suggestionRows().length > 0 || this.searching()));
+  readonly showSuggestions = computed(() => this.suggestOpen() && (this.suggestionRows().length > 0 || this.searching() || this.searchFailed()));
+
+  // Prices of the chosen stores ("Läden & Aktionen")
+  readonly dealsOpen = signal(false);
+  readonly priceOpenId = signal<string | null>(null);
+  readonly chainLabel = chainLabel;
+  readonly formatPrice = formatPrice;
 
   // Form fields for "Neue Liste" and the list settings
   listName = '';
@@ -120,11 +129,16 @@ export class Shopping implements OnDestroy {
     private store: ShoppingStore,
     private householdStore: HouseholdStore,
     private confirm: ConfirmService,
-    private productSearch: ProductSearch
+    private productSearch: ProductSearch,
+    readonly storePrices: StorePrices
   ) {
     this.init();
     // Focus the name as soon as a row switches to editing
     effect(() => this.editInput()?.nativeElement.focus());
+    // Prices for everything still to buy, once stores are chosen
+    effect(() => {
+      if (this.storePrices.chains().length > 0) this.storePrices.request(this.openItems().map((i) => i.name));
+    });
   }
 
   ngOnDestroy() {
@@ -147,6 +161,8 @@ export class Shopping implements OnDestroy {
       const [userId] = await Promise.all([this.store.userId(), this.reloadLists()]);
       this.userId.set(userId);
       this.store.recentNames().then((names) => this.suggestions.set(names), () => undefined);
+      // Without the store_preferences table (migration not run yet) the list works as before
+      this.storePrices.loadChains().catch(() => undefined);
       const lists = this.lists();
       if (lists.length === 0) {
         this.openNewList();
@@ -279,6 +295,7 @@ export class Shopping implements OnDestroy {
     this.activeSuggestion.set(-1);
     this.stopSearch();
     this.products.set([]);
+    this.searchFailed.set(false);
     if (value.trim().length < MIN_SEARCH_LENGTH) return;
     this.searching.set(true);
     this.searchTimer = setTimeout(() => this.runSearch(value), SEARCH_DELAY_MS);
@@ -292,6 +309,7 @@ export class Shopping implements OnDestroy {
       if (!abort.signal.aborted) this.products.set(products);
     } catch {
       // Without the product database the own suggestions still work
+      if (!abort.signal.aborted) this.searchFailed.set(true);
     } finally {
       if (!abort.signal.aborted) this.searching.set(false);
     }
@@ -341,6 +359,24 @@ export class Shopping implements OnDestroy {
   choose(row: Suggestion) {
     this.newName = row.kind === 'own' ? row.name : row.product.name;
     return this.addItem(row.kind === 'product' ? row.product : null);
+  }
+
+  priceState(item: ShoppingItem): PriceState | undefined {
+    return this.storePrices.prices().get(priceKey(item.name));
+  }
+
+  bestPrice(item: ShoppingItem): StoreProduct | null {
+    return cheapest(this.priceState(item)?.results ?? []);
+  }
+
+  togglePrices(item: ShoppingItem) {
+    this.priceOpenId.update((id) => (id === item.id ? null : item.id));
+  }
+
+  addFromDeal(name: string) {
+    this.newName = name;
+    this.newQuantity = '';
+    return this.addItem();
   }
 
   productDetails(product: Product): string {
