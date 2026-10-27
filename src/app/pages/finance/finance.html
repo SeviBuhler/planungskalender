@@ -138,7 +138,7 @@
                         <input class="col-span-4 sm:col-span-2 p-2 rounded bg-yellow-100 text-right" type="number" [ngModel]="expense.amountPerUnit" (ngModelChange)="setItem('expenses', i, 'amountPerUnit', $event)" aria-label="Betrag pro Einheit" />
                         <input class="col-span-3 sm:col-span-2 p-2 rounded bg-yellow-100 text-right" type="number" [ngModel]="expense.quantity" (ngModelChange)="setItem('expenses', i, 'quantity', $event)" aria-label="Anzahl" />
                         <span class="col-span-3 sm:col-span-2 text-right">{{ chf(expenseTotal(expense)) }}</span>
-                        <button class="col-span-2 sm:col-span-1 text-fuchsia-700 hover:text-fuchsia-500" (click)="removeItem('expenses', i)" aria-label="Entfernen">✕</button>
+                        <button appIconButton class="col-span-2 sm:col-span-1" (click)="removeItem('expenses', i)" aria-label="Ausgabe entfernen"></button>
                     </div>
                 }
                 <div class="flex justify-between items-center mt-2">
@@ -173,7 +173,7 @@
                         </label>
                         <span class="col-span-2 sm:col-span-1 text-right text-sm">Zahlung<br><b>{{ chf(result().priorities[i].payment) }}</b></span>
                         <span class="col-span-2 sm:col-span-1 text-right text-sm">Rest<br>{{ chf(result().priorities[i].remaining) }}</span>
-                        <button class="col-span-12 sm:col-span-1 text-fuchsia-700 hover:text-fuchsia-500" (click)="removeItem('priorities', i)" aria-label="Entfernen">✕</button>
+                        <button appIconButton class="col-span-12 sm:col-span-1" (click)="removeItem('priorities', i)" aria-label="Position entfernen"></button>
                     </div>
                 }
                 <div class="flex flex-wrap justify-between items-center gap-2 mt-2">

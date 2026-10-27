@@ -6,6 +6,7 @@ import { BudgetStore, FinancePlan } from '../../features/finance/budget-store';
 import { Household, HouseholdStore } from '../../features/households/household-store';
 import { ConfirmService } from '../../components/confirm/confirm';
 import { Select, SelectOption } from '../../components/select/select';
+import { IconButton } from '../../components/icon-button/icon-button';
 import { PageHeader } from '../../components/page-header/page-header';
 import { FinanceSummary } from './finance-summary';
 
@@ -66,7 +67,7 @@ function rememberedPlan(): string | null {
 
 @Component({
   selector: 'app-finance',
-  imports: [PageHeader, FormsModule, RouterLink, Select, FinanceSummary],
+  imports: [PageHeader, FormsModule, RouterLink, Select, FinanceSummary, IconButton],
   templateUrl: './finance.html',
   styleUrl: './finance.css',
 })

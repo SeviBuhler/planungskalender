@@ -9,6 +9,7 @@ import { StoreDeals } from './store-deals/store-deals';
 import { Household, HouseholdStore } from '../../features/households/household-store';
 import { ConfirmService } from '../../components/confirm/confirm';
 import { Select, SelectOption } from '../../components/select/select';
+import { IconButton } from '../../components/icon-button/icon-button';
 import { PageHeader } from '../../components/page-header/page-header';
 
 type ViewState = 'loading' | 'empty' | 'ready' | 'error';
@@ -52,7 +53,7 @@ function optional(text: string): string | null {
 
 @Component({
   selector: 'app-shopping',
-  imports: [PageHeader, FormsModule, NgTemplateOutlet, RouterLink, Select, StoreDeals],
+  imports: [PageHeader, FormsModule, NgTemplateOutlet, RouterLink, Select, StoreDeals, IconButton],
   templateUrl: './shopping.html',
 })
 export class Shopping implements OnDestroy {

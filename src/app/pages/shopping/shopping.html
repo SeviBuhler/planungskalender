@@ -180,7 +180,7 @@
                     <span class="shrink-0 px-2 text-xs text-gray-500" aria-label="Preise werden gesucht">…</span>
                 }
             }
-            <button class="shrink-0 px-2 py-1 rounded text-gray-500 hover:bg-red-100 hover:text-red-700" (click)="removeItem(item)" [attr.aria-label]="item.name + ' entfernen'">✕</button>
+            <button appIconButton (click)="removeItem(item)" [attr.aria-label]="item.name + ' entfernen'"></button>
             @if (priceOpenId() === item.id && !item.checked) {
                 <!-- Indented with padding, not margin: basis-full plus a margin is wider than the screen -->
                 <div animate.enter="anim-drop-in" class="basis-full min-w-0 pl-8 mt-1 mb-1">

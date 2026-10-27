@@ -1,5 +1,7 @@
 import { Component, OnInit, computed, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { IconButton } from '../../../components/icon-button/icon-button';
+import { Select, SelectOption } from '../../../components/select/select';
 import { CHAINS, Chain, ChainResult, StorePrices, StoreProduct, chainLabel, formatPrice } from '../../../features/shopping/store-prices';
 
 function errorMessage(error: unknown): string {
@@ -11,7 +13,7 @@ function errorMessage(error: unknown): string {
 // "Wo kaufst du ein?" and the current promotions of those stores
 @Component({
   selector: 'app-store-deals',
-  imports: [FormsModule],
+  imports: [FormsModule, Select, IconButton],
   templateUrl: './store-deals.html',
 })
 export class StoreDeals implements OnInit {
@@ -26,6 +28,10 @@ export class StoreDeals implements OnInit {
   readonly results = signal<ChainResult[]>([]);
   readonly filter = signal('');
   readonly chainFilter = signal<Chain | 'all'>('all');
+  readonly chainOptions = computed<SelectOption[]>(() => [
+    { value: 'all', label: 'Alle Läden' },
+    ...this.stores.chains().map((c) => ({ value: c, label: chainLabel(c) })),
+  ]);
 
   readonly deals = computed<StoreProduct[]>(() => {
     const words = this.filter().trim().toLowerCase().split(/\s+/).filter(Boolean);
