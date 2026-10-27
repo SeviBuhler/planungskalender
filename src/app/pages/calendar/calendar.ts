@@ -33,6 +33,18 @@ const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 // Phones show three days in the week view, larger screens Monday to Sunday
 const COMPACT_QUERY = '(max-width: 767.98px)';
 const COMPACT_DAYS = 3;
+// Last chosen view, kept across module changes and app restarts
+const VIEW_KEY = 'fortwo.calendarView';
+const VIEWS: CalendarView[] = ['year', 'month', 'week', 'day'];
+
+function savedView(): CalendarView {
+  try {
+    const view = localStorage.getItem(VIEW_KEY) as CalendarView | null;
+    return view && VIEWS.includes(view) ? view : 'month';
+  } catch {
+    return 'month'; // private mode
+  }
+}
 const SWIPE_MIN_PX = 60;
 const FLICK_MIN_PX = 20;
 const FLICK_MIN_SPEED = 0.4; // px per ms
@@ -114,7 +126,7 @@ export class Calendar {
     ...CATEGORIES.map((c) => ({ value: c.id, label: c.label })),
   ];
 
-  readonly view = signal<CalendarView>('month');
+  readonly view = signal<CalendarView>(savedView());
   readonly date = signal(startOfDay(new Date()));
   readonly compact = signal(false); // small screen: the week view shows three days
   readonly weekLength = computed(() => (this.compact() ? COMPACT_DAYS : 7));
@@ -317,6 +329,7 @@ export class Calendar {
     if (view === this.view()) return;
     this.fadeClass.set('anim-fade-in');
     this.view.set(view);
+    try { localStorage.setItem(VIEW_KEY, view); } catch { /* private mode */ }
   }
 
   previous() {

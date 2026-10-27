@@ -31,7 +31,7 @@
 
 /* Phones: pages with the floating bottom bar keep their last content clear of it */
 @media (max-width: 47.99rem) {
-  :has(> app-page-header) { padding-bottom: calc(6.5rem + env(safe-area-inset-bottom)); }
+  :has(> app-page-header) { padding-bottom: calc(max(1rem, env(safe-area-inset-bottom)) + 5.25rem); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -41,7 +41,7 @@
 /* Update banner: above the floating bottom bar on phones */
 .update-banner { padding-bottom: calc(0.75rem + env(safe-area-inset-bottom)); }
 @media (max-width: 47.99rem) {
-  body:has(app-page-header) .update-banner { padding-bottom: calc(6.5rem + env(safe-area-inset-bottom)); }
+  body:has(app-page-header) .update-banner { padding-bottom: calc(max(1rem, env(safe-area-inset-bottom)) + 5.25rem); }
 }
 
 /* Dialogs: above the bottom bar, scroll inside themselves and never move the page behind them */
@@ -59,3 +59,16 @@
 }
 html:has(.dialog-backdrop),
 html:has(.dialog-backdrop) body { overflow: hidden; }
+
+/* iPhone app: the page runs under the status bar (viewport-fit=cover, black-translucent), so the top
+   gets a solid strip exactly as tall as the status bar instead of Safari's wide fade */
+body { padding-top: env(safe-area-inset-top); }
+.min-h-screen { min-height: calc(100vh - env(safe-area-inset-top)); }
+.status-strip {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 80;
+  height: env(safe-area-inset-top);
+  background: #7040E8;
+}
+.dark .status-strip { background: #25134D; }
