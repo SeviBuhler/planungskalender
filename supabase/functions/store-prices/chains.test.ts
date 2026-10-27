@@ -1,7 +1,7 @@
 // node --test supabase/functions/store-prices/chains.test.ts (Node 22.18+ runs TypeScript directly)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Aldi, Denner, Lidl, Migros, aldiProduct, dennerProduct, lidlLeafletProduct, lidlSearchProduct, matches, migrosProduct } from './chains.ts';
+import { Aldi, Coop, Denner, Lidl, Migros, aldiProduct, coopProduct, nextSunday, dennerProduct, lidlLeafletProduct, lidlSearchProduct, matches, migrosProduct } from './chains.ts';
 
 type Call = { url: string; init?: RequestInit };
 
@@ -78,7 +78,7 @@ test('Migros: guest token, search, details, one retry after an expired token', a
   const search = calls.find((c) => c.url.includes('/v5/search'))!;
   assert.equal(JSON.parse(String(search.init?.body)).query, 'milch');
   assert.equal((search.init?.headers as Record<string, string>).leshopch, 'token-1');
-  assert.match(calls.at(-1)!.url, /uids=11%2C12&language=de&region=2/);
+  assert.match(calls.at(-1)!.url, /product-detail\?warehouseId=1&storeType=OFFLINE&region=2&uids=11,12&language=de$/);
 });
 
 test('Aldi: price in Rappen, was-price and image placeholders', () => {
@@ -160,4 +160,43 @@ test('Lidl: only food from the web search, leaflet promotions', async () => {
   });
   const promos = await new Lidl(fetcher).promotions(10);
   assert.deepEqual(promos.map((p) => [p.name, p.promotion]), [['Rohschinken', 'Aktion']]);
+});
+
+test('Coop: search, promotion flags, size and product link', async () => {
+  const milk = coopProduct({
+    code: '4389992', title: 'Naturaplan Bio Vollmilch UHT', price: { value: 9.95 }, originalPrice: { value: 11.7 }, weekPromotion: true,
+    content: '6', contentUnit: 'l', categoryPathForTracking: 'lebensmittel/milchprodukte-eier/milch',
+    images: [{ url: 'https://www.coop.ch/img/produkte/310_310/RGB/4389992_001.jpg' }],
+  });
+  assert.deepEqual(milk, {
+    chain: 'coop', id: '4389992', name: 'Naturaplan Bio Vollmilch UHT', brand: null, size: '6 l', price: 9.95, regularPrice: 11.7,
+    promotion: '-15%', validUntil: null, imageUrl: 'https://www.coop.ch/img/produkte/310_310/RGB/4389992_001.jpg',
+    url: 'https://www.coop.ch/de/lebensmittel/milchprodukte-eier/milch/p/4389992',
+  });
+  assert.equal(coopProduct({ code: '1', title: 'Brot', price: { value: 2 } })?.promotion, null);
+  assert.equal(nextSunday(new Date('2026-10-27T10:00:00Z')), '2026-11-01');
+  assert.equal(nextSunday(new Date('2026-11-01T10:00:00Z')), '2026-11-01');
+
+  const { fetcher, calls } = fakeFetch({
+    'https://www.coop.ch/rest/v2/coopathome/products/search/': () => jsonResponse({
+      products: [{ code: '1', title: 'Vollmilch', price: { value: 1.95 } }, { code: '2', title: 'Rahm', price: { value: 2.5 } }],
+    }),
+    'https://www.coop.ch/rest/v2/coopathome/products/category/m_1011': (call) => {
+      if (call.url.includes('currentPage=2')) return new Response('blocked', { status: 403 });
+      return jsonResponse({ products: [
+        { code: 'a', title: 'Kaffee', price: { value: 5 }, originalPrice: { value: 10 }, hasPromotion: true },
+        { code: 'b', title: 'Tee', price: { value: 3 } },
+      ] });
+    },
+  });
+  const coop = new Coop(fetcher, () => new Date('2026-10-27T10:00:00Z'));
+  assert.deepEqual((await coop.search('milch', 4)).map((p) => p.id), ['1']);
+  assert.match(calls[0].url, /search\/milch\?currentPage=0&pageSize=12&query=availableOnline%3Afalse&language=de/);
+  const promos = await coop.promotions(10);
+  assert.deepEqual(promos.map((p) => [p.id, p.promotion, p.validUntil]), [['a', '-50%', '2026-11-01']]);
+});
+
+test('errors name the status and the address for the logs', async () => {
+  const { fetcher } = fakeFetch({ 'https://www.coop.ch/': () => new Response('<html>Please enable JS</html>', { status: 403 }) });
+  await assert.rejects(new Coop(fetcher).search('milch', 4), /HTTP 403 www\.coop\.ch\/rest\/v2\/coopathome\/products\/search\/milch <html>Please enable JS/);
 });

@@ -5,8 +5,8 @@
 //
 // Tests: node --test supabase/functions/store-prices/chains.test.ts
 
-export type Chain = 'migros' | 'aldi' | 'denner' | 'lidl';
-export const CHAINS: Chain[] = ['migros', 'aldi', 'denner', 'lidl'];
+export type Chain = 'migros' | 'coop' | 'aldi' | 'denner' | 'lidl';
+export const CHAINS: Chain[] = ['migros', 'coop', 'aldi', 'denner', 'lidl'];
 
 export interface StoreProduct {
   chain: Chain;
@@ -83,7 +83,11 @@ async function request(fetcher: Fetcher, url: string, init: RequestInit = {}): P
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
     const response = await fetcher(url, { ...init, signal: controller.signal });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.ok) {
+      // Status, address and the start of the answer end up in the function logs
+      const body = (await response.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 160);
+      throw new Error(`HTTP ${response.status} ${new URL(url).host}${new URL(url).pathname} ${body}`.trim());
+    }
     return response;
   } catch (error) {
     if (controller.signal.aborted) throw new Error('Zeitüberschreitung');
@@ -100,6 +104,13 @@ async function json(fetcher: Fetcher, url: string, init?: RequestInit): Promise<
 // ---- Migros (www.migros.ch, guest token in header "leshopch") ----
 
 const MIGROS = 'https://www.migros.ch';
+// What migros.ch itself sends; without a browser User-Agent requests may be turned away
+const MIGROS_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15',
+  'Accept-Language': 'de-CH,de;q=0.9',
+  Origin: MIGROS,
+  Referer: `${MIGROS}/de`,
+};
 // Region 2 (Zürich) is what migros.ch shows visitors; "national" lacks regional prices
 const MIGROS_REGION = '2';
 
@@ -142,7 +153,7 @@ export class Migros {
 
   private guestToken(): Promise<string> {
     this.token ??= request(this.fetcher, `${MIGROS}/authentication/public/v1/api/guest`, {
-      headers: { accept: 'application/json, text/plain, */*' },
+      headers: { ...MIGROS_HEADERS, accept: 'application/json, text/plain, */*' },
     }).then((r) => {
       const token = r.headers.get('leshopch');
       if (!token) throw new Error('Kein Gast-Token');
@@ -157,7 +168,8 @@ export class Migros {
   // One new guest token when the old one expired
   private async call(url: string, init: RequestInit = {}): Promise<unknown> {
     for (let attempt = 0; ; attempt++) {
-      const headers = { accept: 'application/json', 'content-type': 'application/json', leshopch: await this.guestToken() };
+      const headers: Record<string, string> = { ...MIGROS_HEADERS, accept: 'application/json, text/plain, */*', leshopch: await this.guestToken() };
+      if (init.body) headers['content-type'] = 'application/json';
       try {
         return await json(this.fetcher, url, { ...init, headers });
       } catch (error) {
@@ -169,8 +181,10 @@ export class Migros {
 
   private async details(uids: string[]): Promise<StoreProduct[]> {
     if (uids.length === 0) return [];
-    const params = new URLSearchParams({ uids: uids.join(','), language: 'de', region: MIGROS_REGION });
-    const body = await this.call(`${MIGROS}/product-display/public/v2/product-detail?${params}`);
+    // Same parameters as the website; without warehouseId and storeType the endpoint answers 400.
+    // The uids stay comma separated, an encoded comma (%2C) is not understood.
+    const query = `warehouseId=1&storeType=OFFLINE&region=${MIGROS_REGION}&uids=${uids.map(encodeURIComponent).join(',')}&language=de`;
+    const body = await this.call(`${MIGROS}/product-display/public/v2/product-detail?${query}`);
     const rows = Array.isArray(body) ? body : Object.values(obj(body));
     return rows.map(obj).map(migrosProduct).filter((p): p is StoreProduct => p !== null);
   }
@@ -199,6 +213,86 @@ export class Migros {
     for (let i = 0; i < ids.length; i += 25) pages.push(ids.slice(i, i + 25));
     const products = (await Promise.all(pages.map((page) => this.details(page)))).flat();
     return products.map((p) => ({ ...p, promotion: p.promotion ?? 'Aktion', validUntil: p.validUntil ?? endDate }));
+  }
+}
+
+// ---- Coop (coop.ch shop API "coopathome", no login) ----
+// Coop protects its site against bots (DataDome); requests from servers may be refused.
+
+const COOP = 'https://www.coop.ch/rest/v2/coopathome';
+const COOP_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
+  Accept: 'application/json, text/plain, */*',
+  'Accept-Language': 'de-CH,de;q=0.9,en;q=0.8',
+};
+// The weekly promotions (Aktionen) category
+const COOP_PROMOTIONS = 'm_1011';
+const COOP_PROMOTION_PAGES = 3;
+
+// Coop promotions run Monday to Sunday and carry no end date of their own
+export function nextSunday(now: Date): string {
+  const d = new Date(now.getTime());
+  d.setUTCDate(d.getUTCDate() + ((7 - d.getUTCDay()) % 7));
+  return d.toISOString().slice(0, 10);
+}
+
+export function coopProduct(raw: Raw): StoreProduct | null {
+  const price = num(obj(raw['price'])['value']);
+  const name = str(raw['title']) ?? str(raw['name']);
+  const id = str(raw['code']);
+  if (!price || !name || !id) return null;
+  const before = regular(price, num(obj(raw['originalPrice'])['value']));
+  const flagged = ['hasPromotion', 'weekPromotion', 'weekendPromotion', 'assortmentHitPromotion', 'megaStorePromotion']
+    .some((flag) => raw[flag] === true);
+  const content = str(raw['content']);
+  const unit = str(raw['contentUnit']);
+  const path = str(raw['categoryPathForTracking']);
+  const discount = num(raw['discountPercentage']);
+  return {
+    chain: 'coop',
+    id,
+    name,
+    brand: str(raw['declarationBrand']) ?? str(raw['brand']),
+    size: content && unit ? `${content} ${unit}` : content,
+    price,
+    regularPrice: before,
+    promotion: before || flagged ? (discount ? `-${Math.round(discount)}%` : percentOff(price, before) ?? 'Aktion') : null,
+    validUntil: null,
+    imageUrl: https(list(raw['images'])[0]?.['url']),
+    url: path ? `https://www.coop.ch/de/${path.replace(/^\/+|\/+$/g, '')}/p/${encodeURIComponent(id)}` : null,
+  };
+}
+
+export class Coop {
+  private fetcher: Fetcher;
+  private now: () => Date;
+  constructor(fetcher: Fetcher = fetch, now: () => Date = () => new Date()) {
+    this.fetcher = fetcher;
+    this.now = now;
+  }
+
+  private async page(path: string, page: number, size: number): Promise<StoreProduct[]> {
+    const params = new URLSearchParams({ currentPage: String(page), pageSize: String(size), query: 'availableOnline:false', language: 'de' });
+    const body = obj(await json(this.fetcher, `${COOP}${path}?${params}`, { headers: COOP_HEADERS }));
+    return list(body['products']).map(coopProduct).filter((p): p is StoreProduct => p !== null);
+  }
+
+  async search(term: string, limit: number): Promise<StoreProduct[]> {
+    const products = await this.page(`/products/search/${encodeURIComponent(term)}`, 0, Math.max(limit * 3, 12));
+    return products.filter((p) => matches(p.name, term)).slice(0, limit);
+  }
+
+  async promotions(limit: number): Promise<StoreProduct[]> {
+    const pages = await Promise.all(
+      Array.from({ length: COOP_PROMOTION_PAGES }, (_, i) => this.page(`/products/category/${COOP_PROMOTIONS}`, i, 100).catch(() => null)),
+    );
+    if (pages.every((p) => p === null)) throw new Error('Coop-Aktionen nicht erreichbar');
+    const validUntil = nextSunday(this.now());
+    const seen = new Set<string>();
+    return pages.flatMap((p) => p ?? [])
+      .filter((p) => p.promotion && !seen.has(p.id) && !!seen.add(p.id))
+      .slice(0, limit)
+      .map((p) => ({ ...p, validUntil }));
   }
 }
 
@@ -469,5 +563,5 @@ export interface ChainApi {
 }
 
 export function chainApis(fetcher: Fetcher = fetch): Record<Chain, ChainApi> {
-  return { migros: new Migros(fetcher), aldi: new Aldi(fetcher), denner: new Denner(fetcher), lidl: new Lidl(fetcher) };
+  return { migros: new Migros(fetcher), coop: new Coop(fetcher), aldi: new Aldi(fetcher), denner: new Denner(fetcher), lidl: new Lidl(fetcher) };
 }
