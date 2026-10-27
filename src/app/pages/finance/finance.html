@@ -1,5 +1,24 @@
 <div class="min-h-screen bg-gray-300 dark:bg-gray-800 p-3 md:p-6 text-sky-950 dark:text-sky-100">
-    <app-page-header title="Finanzplanung" />
+    <app-page-header title="Finanzplanung" [customTitle]="state() === 'ready'" [addLabel]="state() === 'ready' ? 'Neuer Plan' : null" (add)="openNewPlan()">
+        @if (state() === 'ready') {
+            <app-title-picker mobileTitle ariaLabel="Finanzplan" [options]="planTitles()" [value]="plan()?.id" (valueChange)="selectPlan($event)" />
+        }
+        @if (state() === 'ready' && isOwner()) {
+            <button headerActions type="button" aria-label="Plan bearbeiten" [class]="'flex size-11 items-center justify-center rounded-full text-[#7040E8] dark:text-[#B590FF] active:scale-95 transition-transform ' + glass" (click)="openSettings()">
+                <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z" /><path d="M13.5 6.5l4 4" /></svg>
+            </button>
+        }
+        @if (state() === 'ready') {
+            <ng-container menuItems>
+                <p class="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider text-[#7040E8] dark:text-[#B590FF] md:hidden">Finanzen</p>
+                <button role="menuitem" type="button" [class]="menuItem" (click)="openSummary()">
+                    <svg class="size-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></svg>
+                    <span>Zusammenfassung<span class="block text-xs opacity-60">Monat &amp; Jahr, Export</span></span>
+                </button>
+                <div class="my-1 h-px bg-black/5 dark:bg-white/10 md:hidden" role="separator"></div>
+            </ng-container>
+        }
+    </app-page-header>
 
     @switch (state()) {
     @case ('error') {
@@ -45,7 +64,8 @@
         </section>
     }
     @case ('ready') {
-    <div class="flex flex-wrap items-center gap-2 mb-2">
+    <!-- Phones: plan picker and pencil in the header, summary in the menu, + next to the bottom bar -->
+    <div class="max-md:hidden flex flex-wrap items-center gap-2 mb-2">
         <app-select class="flex-1 min-w-48" ariaLabel="Finanzplan" [options]="planOptions()" [value]="plan()?.id" (valueChange)="selectPlan($event)" />
         @if (isOwner()) {
             <button class="px-3 py-2 rounded-lg shadow bg-gray-100 text-indigo-800 hover:bg-fuchsia-100" (click)="openSettings()">Bearbeiten</button>

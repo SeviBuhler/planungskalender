@@ -25,7 +25,7 @@ import { ConfirmService } from '../../components/confirm/confirm';
 import { Select, SelectOption } from '../../components/select/select';
 import { SubscribeDialog } from './subscribe-dialog';
 import { ImportDialog } from './import-dialog';
-import { GLASS, PageHeader } from '../../components/page-header/page-header';
+import { GLASS, PHONE_MENU_ITEM, PageHeader } from '../../components/page-header/page-header';
 import { ViewPicker } from '../../components/view-picker/view-picker';
 import { ScrollToHour } from './scroll-to-hour';
 
@@ -190,7 +190,7 @@ export class Calendar {
   });
 
   readonly glass = GLASS;
-  readonly menuItem = 'flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors hover:bg-indigo-50 focus:outline-none focus-visible:bg-indigo-50 dark:hover:bg-indigo-800 dark:focus-visible:bg-indigo-800 md:hidden';
+  readonly menuItem = PHONE_MENU_ITEM;
 
   readonly dayHeading = computed(() =>
     this.date().toLocaleDateString('de-CH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })

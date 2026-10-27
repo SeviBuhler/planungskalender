@@ -7,7 +7,8 @@ import { Household, HouseholdStore } from '../../features/households/household-s
 import { ConfirmService } from '../../components/confirm/confirm';
 import { Select, SelectOption } from '../../components/select/select';
 import { IconButton } from '../../components/icon-button/icon-button';
-import { PageHeader } from '../../components/page-header/page-header';
+import { GLASS, PHONE_MENU_ITEM, PageHeader } from '../../components/page-header/page-header';
+import { TitleOption, TitlePicker } from '../../components/title-picker/title-picker';
 import { FinanceSummary } from './finance-summary';
 
 type ListKey = 'expenses' | 'priorities';
@@ -67,7 +68,7 @@ function rememberedPlan(): string | null {
 
 @Component({
   selector: 'app-finance',
-  imports: [PageHeader, FormsModule, RouterLink, Select, FinanceSummary, IconButton],
+  imports: [PageHeader, TitlePicker, FormsModule, RouterLink, Select, FinanceSummary, IconButton],
   templateUrl: './finance.html',
   styleUrl: './finance.css',
 })
@@ -89,6 +90,14 @@ export class Finance implements OnDestroy {
   readonly plan = signal<FinancePlan | null>(null);
 
   readonly planHousehold = computed(() => this.householdOf(this.plan()));
+  readonly menuItem = PHONE_MENU_ITEM;
+  readonly glass = GLASS;
+  readonly planTitles = computed<TitleOption[]>(() =>
+    this.plans().map((p) => {
+      const household = this.householdOf(p);
+      return { value: p.id, label: p.name, sub: household ? household.name : 'Privat', shared: !!household };
+    })
+  );
   readonly isOwner = computed(() => this.plan()?.ownerId === this.userId());
   readonly visibilityLabel = computed(() => {
     const household = this.planHousehold();

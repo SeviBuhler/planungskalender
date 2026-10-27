@@ -1,5 +1,14 @@
 <div class="min-h-screen bg-gray-300 dark:bg-gray-800 p-3 md:p-6 text-sky-950 dark:text-sky-100">
-    <app-page-header title="Einkaufsliste" />
+    <app-page-header title="Einkaufsliste" [customTitle]="state() === 'ready'" [addLabel]="state() === 'ready' ? 'Neue Liste' : null" (add)="openNewList()">
+        @if (state() === 'ready') {
+            <app-title-picker mobileTitle ariaLabel="Einkaufsliste" [options]="listTitles()" [value]="list()?.id" (valueChange)="selectList($event)" />
+        }
+        @if (state() === 'ready' && isOwner()) {
+            <button headerActions type="button" aria-label="Liste bearbeiten" [class]="'flex size-11 items-center justify-center rounded-full text-[#7040E8] dark:text-[#B590FF] active:scale-95 transition-transform ' + glass" (click)="openSettings()">
+                <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z" /><path d="M13.5 6.5l4 4" /></svg>
+            </button>
+        }
+    </app-page-header>
 
     <ng-template #listPanel>
         <section animate.enter="anim-pop-in" class="max-w-xl mx-auto mb-4 rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-4 md:p-6 flex flex-col gap-4">
@@ -53,13 +62,24 @@
     }
     @case ('ready') {
     <div class="max-w-2xl mx-auto">
-        <div class="flex flex-wrap items-center gap-2 mb-2">
+        <!-- Phones: list picker and pencil in the header, + next to the bottom bar, deals as a tab -->
+        <div class="max-md:hidden flex flex-wrap items-center gap-2 mb-2">
             <app-select class="flex-1 min-w-48" ariaLabel="Einkaufsliste" [options]="listOptions()" [value]="list()?.id" (valueChange)="selectList($event)" />
             @if (isOwner()) {
                 <button class="px-3 py-2 rounded-lg shadow bg-gray-100 text-indigo-800 hover:bg-fuchsia-100" (click)="openSettings()">Bearbeiten</button>
             }
             <button class="px-3 py-2 rounded-lg shadow bg-gray-100 text-indigo-800 hover:bg-fuchsia-100" [attr.aria-expanded]="dealsOpen()" (click)="dealsOpen.set(!dealsOpen())">Läden &amp; Aktionen</button>
             <button class="px-3 py-2 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white" (click)="openNewList()">+ Neue Liste</button>
+        </div>
+        <div role="tablist" aria-label="Ansicht" [class]="'md:hidden mb-3 flex gap-1 rounded-full p-1 ' + glass">
+            @for (tab of tabs; track tab.deals) {
+                <button role="tab" type="button" [attr.aria-selected]="dealsOpen() === tab.deals" (click)="dealsOpen.set(tab.deals)"
+                        [class]="'flex flex-1 items-center justify-center gap-1.5 rounded-full py-2 text-sm transition-colors ' + (dealsOpen() === tab.deals
+                          ? 'bg-[#7040E8] font-semibold text-white' : 'text-[#25134D] dark:text-sky-100')">
+                    <svg class="size-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path [attr.d]="tab.icon" /></svg>
+                    {{ tab.label }}
+                </button>
+            }
         </div>
         <p class="mb-4 text-sm">
             @if (listHousehold(); as h) {
@@ -75,7 +95,7 @@
             <app-store-deals (add)="addFromDeal($event)" (close)="dealsOpen.set(false)" />
         }
 
-        <section class="rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-3 md:p-4">
+        <section class="rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-3 md:p-4" [class.max-md:hidden]="dealsOpen()">
             <form class="relative flex gap-2 mb-3" (ngSubmit)="addItem()">
                 <div class="flex-1 min-w-0" (focusout)="leaveSuggestions($event)">
                     <input class="w-full p-2 rounded bg-white" name="newName" [ngModel]="newName" (ngModelChange)="onNameInput($event)" (keydown)="onNameKeydown($event)" (focus)="suggestOpen.set(true)"
