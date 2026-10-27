@@ -13,6 +13,7 @@
         <h2 class="order-first w-full md:order-none md:w-auto text-xl md:text-2xl font-semibold capitalize text-center">{{ title() }}</h2>
         <div class="flex gap-2">
             <button class="px-3 py-1.5 rounded-lg shadow bg-gray-100 text-indigo-800 hover:bg-fuchsia-100" (click)="subscribeOpen.set(true)" title="Mit Handy-Kalender verbinden">Abo</button>
+            <button class="px-3 py-1.5 rounded-lg shadow bg-gray-100 text-indigo-800 hover:bg-fuchsia-100" (click)="importOpen.set(true)" title="Kalender aus Datei importieren">Import</button>
             <button class="px-3 py-1.5 rounded-lg shadow bg-gray-100 text-indigo-800 hover:bg-fuchsia-100" (click)="goToToday()">Heute</button>
             <button class="px-3 py-1.5 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white" (click)="newEvent()">+ Termin</button>
         </div>
@@ -135,6 +136,10 @@
 
     @if (subscribeOpen()) {
         <app-subscribe-dialog (closed)="subscribeOpen.set(false)" />
+    }
+
+    @if (importOpen()) {
+        <app-import-dialog [targets]="visibilityOptions()" (closed)="closeImport($event)" />
     }
 
     @if (form(); as f) {

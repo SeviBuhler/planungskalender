@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Supabase } from '../../services/supabase';
 import { CalendarEvent, Category, Recurrence } from './calendar-layout';
+import { ImportedEvent } from './ics-import';
 
 export type EventInput = Omit<CalendarEvent, 'id' | 'ownerId'>;
 
@@ -37,6 +38,17 @@ function toEvent(row: EventRow): CalendarEvent {
     recurrence: row.recurrence,
     recurrenceUntil: row.recurrence_until,
   };
+}
+
+const IMPORT_CHUNK = 500;
+
+// Same text gives the same id, so a second import keeps the occurrences in one series
+async function seriesUuid(text: string): Promise<string> {
+  const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
+  hash[6] = (hash[6] & 0x0f) | 0x50;
+  hash[8] = (hash[8] & 0x3f) | 0x80;
+  const hex = Array.from(hash.slice(0, 16), (b) => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 function toRow(input: EventInput) {
@@ -81,6 +93,38 @@ export class CalendarStore {
   async create(inputs: EventInput[]): Promise<void> {
     const { error } = await this.supabase.client.from('calendar_events').insert(inputs.map(toRow));
     if (error) throw error;
+  }
+
+  // Imported events carry a key from the file; importing the same file again updates them
+  async importEvents(events: ImportedEvent[], householdId: string | null, onProgress?: (done: number) => void): Promise<void> {
+    const owner = await this.userId();
+    if (!owner) throw new Error('Nicht angemeldet');
+    const seriesIds = new Map<string, string>();
+    for (const key of new Set(events.map((e) => e.seriesKey).filter((k): k is string => k !== null))) {
+      seriesIds.set(key, await seriesUuid(`${owner}|${key}`));
+    }
+    const rows = events.map((e) => ({
+      ...toRow({
+        title: e.title,
+        description: e.description,
+        start: e.start,
+        end: e.end,
+        allDay: e.allDay,
+        householdId,
+        category: null,
+        seriesId: e.seriesKey ? seriesIds.get(e.seriesKey)! : null,
+        recurrence: e.seriesKey ? e.recurrence : null,
+        recurrenceUntil: e.seriesKey ? e.recurrenceUntil : null,
+      }),
+      import_key: e.key,
+    }));
+    for (let i = 0; i < rows.length; i += IMPORT_CHUNK) {
+      const { error } = await this.supabase.client
+        .from('calendar_events')
+        .upsert(rows.slice(i, i + IMPORT_CHUNK), { onConflict: 'owner_id,import_key', defaultToNull: false });
+      if (error) throw error;
+      onProgress?.(Math.min(rows.length, i + IMPORT_CHUNK));
+    }
   }
 
   async update(id: string, input: EventInput): Promise<void> {
