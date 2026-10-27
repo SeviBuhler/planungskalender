@@ -1,7 +1,7 @@
 // node --test supabase/functions/store-prices/chains.test.ts (Node 22.18+ runs TypeScript directly)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Aldi, Coop, Denner, Lidl, Migros, aldiProduct, coopProduct, nextSunday, dennerProduct, lidlLeafletProduct, lidlSearchProduct, matches, migrosProduct } from './chains.ts';
+import { Aldi, Coop, Denner, Lidl, Migros, Ottos, Volg, aldiProduct, coopProduct, nextSunday, dennerProduct, lidlLeafletProduct, lidlSearchProduct, matches, migrosProduct, ottosProduct, volgProduct } from './chains.ts';
 
 type Call = { url: string; init?: RequestInit };
 
@@ -199,4 +199,59 @@ test('Coop: search, promotion flags, size and product link', async () => {
 test('errors name the status and the address for the logs', async () => {
   const { fetcher } = fakeFetch({ 'https://www.coop.ch/': () => new Response('<html>Please enable JS</html>', { status: 403 }) });
   await assert.rejects(new Coop(fetcher).search('milch', 4), /HTTP 403 www\.coop\.ch\/rest\/v2\/coopathome\/products\/search\/milch <html>Please enable JS/);
+});
+
+test('Volg: prices in Rappen, sale price, size from the attributes', async () => {
+  const butter = volgProduct({
+    id: 812, name: 'Volg Butter &amp; Rahm 250g', on_sale: true, permalink: 'https://www.volgshop.ch/product/volg-butter/',
+    prices: { price: '390', regular_price: '490', sale_price: '390', currency_minor_unit: 2 },
+    attributes: [{ name: 'Mengeneinheit', terms: [{ name: '250g' }] }],
+    images: [{ src: 'https://www.volgshop.ch/wp-content/uploads/butter.jpg', thumbnail: 'https://www.volgshop.ch/wp-content/uploads/butter-300x300.jpg' }],
+  });
+  assert.deepEqual(butter, {
+    chain: 'volg', id: '812', name: 'Volg Butter & Rahm 250g', brand: null, size: '250g', price: 3.9, regularPrice: 4.9,
+    promotion: '-20%', validUntil: null, imageUrl: 'https://www.volgshop.ch/wp-content/uploads/butter-300x300.jpg',
+    url: 'https://www.volgshop.ch/product/volg-butter/',
+  });
+  assert.equal(volgProduct({ id: 1, name: 'Brot', on_sale: false, prices: { price: '250', regular_price: '300' } })?.regularPrice, null);
+
+  const { fetcher, calls } = fakeFetch({
+    'https://www.volgshop.ch/wp-json/wc/store/v1/products': (call) => jsonResponse(call.url.includes('on_sale=true')
+      ? [{ id: 3, name: 'Kaffee', on_sale: true, prices: { price: '500', regular_price: '1000' } }]
+      : [{ id: 1, name: 'Vollmilch 1l', prices: { price: '175' } }, { id: 2, name: 'Rahm', prices: { price: '250' } }]),
+  });
+  const volg = new Volg(fetcher);
+  assert.deepEqual((await volg.search('milch', 4)).map((p) => [p.id, p.price]), [['1', 1.75]]);
+  assert.match(calls[0].url, /products\?search=milch&per_page=12$/);
+  assert.deepEqual((await volg.promotions(60)).map((p) => [p.id, p.promotion]), [['3', '-50%']]);
+});
+
+test("Otto's: only groceries, was-price, images from the API host", async () => {
+  const food = { categories: [{ code: 'M_ROOT' }, { code: 'm_10000' }] };
+  const chocolate = ottosProduct({
+    ...food, code: '444612', name: 'Munz Tafel <em class="search-results-highlight">Milch</em> 10 x 100 g', brand: 'Munz',
+    price: { value: 14.95 }, insteadOfPrice: { value: 19.95 }, url: '/supermarkt-weine/lebensmittel/p/444612',
+    images: [{ format: 'product-main', url: '/medias/product-main-444612-01?context=a' }, { format: 'product-thumbnail', url: '/medias/product-thumbnail-444612-01?context=b' }],
+  });
+  assert.deepEqual(chocolate, {
+    chain: 'ottos', id: '444612', name: 'Munz Tafel Milch 10 x 100 g', brand: 'Munz', size: null, price: 14.95, regularPrice: 19.95,
+    promotion: '-25%', validUntil: null, imageUrl: 'https://api.ottos.ch/medias/product-thumbnail-444612-01?context=b',
+    url: 'https://www.ottos.ch/de/supermarkt-weine/lebensmittel/p/444612',
+  });
+  assert.equal(ottosProduct({ categories: [{ code: 'm_50000' }], code: '9', name: 'Sofa Milano', price: { value: 499 } }), null);
+
+  const { fetcher, calls } = fakeFetch({
+    'https://api.ottos.ch/occ/v2/ottos/products/search': (call) => {
+      if (call.url.includes('m_30000')) return new Response('down', { status: 503 });
+      if (call.url.includes('priceDiscount')) return jsonResponse({ products: [
+        { ...food, code: 'a', name: 'Kaffee', price: { value: 5 }, insteadOfPrice: { value: 10 } },
+        { ...food, code: 'b', name: 'Tee', price: { value: 3 } },
+      ] });
+      return jsonResponse({ products: [{ ...food, code: '1', name: 'Vollmilch', price: { value: 1.6 } }, { ...food, code: '2', name: 'Rahm', price: { value: 2 } }] });
+    },
+  });
+  const ottos = new Ottos(fetcher);
+  assert.deepEqual((await ottos.search('milch', 4)).map((p) => p.id), ['1']);
+  assert.match(calls[0].url, /query=milch%3Arelevance&pageSize=16&lang=de&curr=CHF&fields=/);
+  assert.deepEqual((await ottos.promotions(10)).map((p) => [p.id, p.promotion]), [['a', '-50%']]);
 });

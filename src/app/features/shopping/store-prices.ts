@@ -3,7 +3,7 @@ import { Supabase } from '../../services/supabase';
 
 // Prices and promotions from the chains' own websites and apps, via the Edge Function
 // supabase/functions/store-prices. Unofficial, so everything is shown "ohne Gewähr".
-export type Chain = 'migros' | 'coop' | 'aldi' | 'denner' | 'lidl';
+export type Chain = 'migros' | 'coop' | 'aldi' | 'denner' | 'lidl' | 'volg' | 'ottos';
 
 export const CHAINS: { id: Chain; label: string; note: string }[] = [
   { id: 'migros', label: 'Migros', note: 'Sortiment und Aktionen' },
@@ -11,6 +11,8 @@ export const CHAINS: { id: Chain; label: string; note: string }[] = [
   { id: 'aldi', label: 'Aldi', note: 'Sortiment und Aktionen' },
   { id: 'denner', label: 'Denner', note: 'nur Aktionen' },
   { id: 'lidl', label: 'Lidl', note: 'Sortiment und Prospekt' },
+  { id: 'volg', label: 'Volg', note: 'Preise vom Onlineshop' },
+  { id: 'ottos', label: "Otto's", note: 'Sortiment und Aktionen' },
 ];
 
 export function chainLabel(chain: Chain): string {

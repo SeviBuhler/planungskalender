@@ -5,8 +5,8 @@
 //
 // Tests: node --test supabase/functions/store-prices/chains.test.ts
 
-export type Chain = 'migros' | 'coop' | 'aldi' | 'denner' | 'lidl';
-export const CHAINS: Chain[] = ['migros', 'coop', 'aldi', 'denner', 'lidl'];
+export type Chain = 'migros' | 'coop' | 'aldi' | 'denner' | 'lidl' | 'volg' | 'ottos';
+export const CHAINS: Chain[] = ['migros', 'coop', 'aldi', 'denner', 'lidl', 'volg', 'ottos'];
 
 export interface StoreProduct {
   chain: Chain;
@@ -61,6 +61,17 @@ function day(value: unknown): string | null {
 function https(value: unknown): string | null {
   const s = str(value);
   return s && s.startsWith('https://') ? s : null;
+}
+
+// Shop texts come with HTML: search highlights (<em>) and entities (&amp;)
+function plain(value: unknown): string | null {
+  const s = str(value);
+  if (!s) return null;
+  return str(s.replace(/<[^>]*>/g, '')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&quot;/g, '"').replace(/&#039;|&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' '));
 }
 
 function regular(price: number, before: number | null): number | null {
@@ -557,11 +568,143 @@ export class Lidl {
   }
 }
 
+// ---- Volg (volgshop.ch, WooCommerce Store API, no login) ----
+// Prices of the Volg online shop; single village stores can differ.
+
+const VOLG = 'https://www.volgshop.ch/wp-json/wc/store/v1/products';
+const VOLG_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
+  Accept: 'application/json',
+  'Accept-Language': 'de-CH,de;q=0.9',
+};
+
+export function volgProduct(raw: Raw): StoreProduct | null {
+  const prices = obj(raw['prices']);
+  const minor = typeof prices['currency_minor_unit'] === 'number' ? prices['currency_minor_unit'] : 2;
+  // Prices are strings in Rappen: "195" -> 1.95
+  const amount = (value: unknown) => {
+    const n = num(value);
+    return n === null ? null : Math.round(n) / 10 ** minor;
+  };
+  const price = amount(prices['price']);
+  const name = plain(raw['name']);
+  const id = str(raw['id']);
+  if (!price || !name || !id) return null;
+  const before = raw['on_sale'] === true ? regular(price, amount(prices['regular_price'])) : null;
+  const size = list(raw['attributes']).find((a) => str(a['name']) === 'Mengeneinheit');
+  return {
+    chain: 'volg',
+    id,
+    name,
+    brand: plain(list(raw['brands'])[0]?.['name']),
+    size: plain(list(size?.['terms'])[0]?.['name']),
+    price,
+    regularPrice: before,
+    promotion: before ? percentOff(price, before) : null,
+    validUntil: null,
+    imageUrl: https(list(raw['images'])[0]?.['thumbnail']) ?? https(list(raw['images'])[0]?.['src']),
+    url: https(raw['permalink']),
+  };
+}
+
+export class Volg {
+  private fetcher: Fetcher;
+  constructor(fetcher: Fetcher = fetch) {
+    this.fetcher = fetcher;
+  }
+
+  private async products(params: Record<string, string>): Promise<StoreProduct[]> {
+    const body = await json(this.fetcher, `${VOLG}?${new URLSearchParams(params)}`, { headers: VOLG_HEADERS });
+    return list(body).map(volgProduct).filter((p): p is StoreProduct => p !== null);
+  }
+
+  async search(term: string, limit: number): Promise<StoreProduct[]> {
+    const products = await this.products({ search: term, per_page: String(Math.max(limit * 3, 12)) });
+    return products.filter((p) => matches(p.name, term)).slice(0, limit);
+  }
+
+  async promotions(limit: number): Promise<StoreProduct[]> {
+    const products = await this.products({ on_sale: 'true', per_page: String(Math.min(Math.max(limit, 1), 100)) });
+    return products.filter((p) => p.promotion);
+  }
+}
+
+// ---- Otto's (api.ottos.ch, SAP Commerce shop API, no login) ----
+
+const OTTOS = 'https://api.ottos.ch/occ/v2/ottos';
+const OTTOS_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
+  Accept: 'application/json, text/plain, */*',
+  'Accept-Language': 'de-CH,de;q=0.9',
+};
+// The default field sets leave out the price before a promotion (insteadOfPrice)
+const OTTOS_FIELDS = 'products(code,name,brand,url,unitName,categories(code),price(FULL),insteadOfPrice(FULL),images(DEFAULT)),pagination(DEFAULT)';
+// Otto's sells everything from furniture to wine; only these departments belong on a shopping list:
+// Supermarkt & Weine, Beauty & Gesundheit, Baby & Kinder
+const OTTOS_GROCERIES = ['m_10000', 'm_20000', 'm_30000'];
+
+export function ottosProduct(raw: Raw): StoreProduct | null {
+  if (!list(raw['categories']).some((c) => OTTOS_GROCERIES.includes(str(c['code']) ?? ''))) return null;
+  const price = num(obj(raw['price'])['value']);
+  const name = plain(raw['name']);
+  const id = str(raw['code']);
+  if (!price || !name || !id) return null;
+  const before = regular(price, num(obj(raw['insteadOfPrice'])['value']));
+  const images = list(raw['images']);
+  const image = str((images.find((i) => i['format'] === 'product-thumbnail') ?? images.find((i) => i['format'] === 'product-main') ?? images[0])?.['url']);
+  const path = str(raw['url']);
+  return {
+    chain: 'ottos',
+    id,
+    name,
+    brand: plain(raw['brand']),
+    size: plain(raw['unitName']),
+    price,
+    regularPrice: before,
+    promotion: before ? percentOff(price, before) : null,
+    validUntil: null,
+    // Images are paths on the API host; www.ottos.ch only redirects them
+    imageUrl: image ? (image.startsWith('/') ? `https://api.ottos.ch${image}` : https(image)) : null,
+    url: path?.startsWith('/') ? `https://www.ottos.ch/de${path}` : null,
+  };
+}
+
+export class Ottos {
+  private fetcher: Fetcher;
+  constructor(fetcher: Fetcher = fetch) {
+    this.fetcher = fetcher;
+  }
+
+  private async find(query: string, size: number): Promise<StoreProduct[]> {
+    const params = new URLSearchParams({ query, pageSize: String(size), lang: 'de', curr: 'CHF', fields: OTTOS_FIELDS });
+    const body = obj(await json(this.fetcher, `${OTTOS}/products/search?${params}`, { headers: OTTOS_HEADERS }));
+    return list(body['products']).map(ottosProduct).filter((p): p is StoreProduct => p !== null);
+  }
+
+  async search(term: string, limit: number): Promise<StoreProduct[]> {
+    const products = await this.find(`${term}:relevance`, Math.min(Math.max(limit * 4, 16), 100));
+    return products.filter((p) => matches(p.name, term)).slice(0, limit);
+  }
+
+  // Reduced items, one request per department (the category filter cannot be combined)
+  async promotions(limit: number): Promise<StoreProduct[]> {
+    const pages = await Promise.all(
+      OTTOS_GROCERIES.map((category) => this.find(`:relevance:category:${category}:priceLabels:priceDiscount`, 80).catch(() => null)),
+    );
+    if (pages.every((p) => p === null)) throw new Error('Otto\'s-Aktionen nicht erreichbar');
+    const seen = new Set<string>();
+    return pages.flatMap((p) => p ?? [])
+      .filter((p) => p.promotion && !seen.has(p.id) && !!seen.add(p.id))
+      .slice(0, limit);
+  }
+}
+
 export interface ChainApi {
   search(term: string, limit: number): Promise<StoreProduct[]>;
   promotions(limit: number): Promise<StoreProduct[]>;
 }
 
 export function chainApis(fetcher: Fetcher = fetch): Record<Chain, ChainApi> {
-  return { migros: new Migros(fetcher), coop: new Coop(fetcher), aldi: new Aldi(fetcher), denner: new Denner(fetcher), lidl: new Lidl(fetcher) };
+  return { migros: new Migros(fetcher), coop: new Coop(fetcher), aldi: new Aldi(fetcher), denner: new Denner(fetcher), lidl: new Lidl(fetcher),
+    volg: new Volg(fetcher), ottos: new Ottos(fetcher) };
 }
