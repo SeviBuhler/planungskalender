@@ -1,0 +1,81 @@
+<div class="min-h-screen bg-gray-300 dark:bg-gray-800 p-3 md:p-6 text-sky-950 dark:text-sky-100">
+    <app-page-header title="Optionen" />
+
+    <div class="max-w-3xl mx-auto flex flex-col gap-4">
+        <!-- Darstellung -->
+        <section class="rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-4 flex flex-col gap-3">
+            <h2 class="font-semibold text-lg">Darstellung</h2>
+            <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="Darstellung">
+                @for (t of themes; track t.mode) {
+                    <button class="px-4 py-2 rounded-lg shadow" role="radio" [attr.aria-checked]="theme.mode() === t.mode"
+                            [class]="theme.mode() === t.mode ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-950'"
+                            (click)="theme.set(t.mode)">{{ t.label }}</button>
+                }
+            </div>
+        </section>
+
+        <!-- Gerätesperre -->
+        <section class="rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-4 flex flex-col gap-3">
+            <h2 class="font-semibold text-lg">Gerätesperre</h2>
+            <p class="text-sm">Bestätige deine Anmeldung mit Face ID, Fingerabdruck oder dem Code deines Geräts statt mit dem E-Mail-Code. Danach bleibst du 7 Tage angemeldet.</p>
+
+            @if (!unlockSupported()) {
+                <p class="text-sm">Dieses Gerät oder dieser Browser unterstützt die Gerätesperre nicht. Prüfe, ob auf dem Gerät eine Bildschirmsperre eingerichtet ist.</p>
+            } @else if (registeredHere()) {
+                <p class="text-sm font-semibold">Auf diesem Gerät ist die Gerätesperre eingerichtet.</p>
+            } @else if (setupStep() === 'idle') {
+                <button class="self-start px-4 py-2 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white disabled:opacity-60" [disabled]="busy()" (click)="sendSetupCode()">Gerätesperre auf diesem Gerät einrichten</button>
+            } @else {
+                <form class="flex flex-wrap items-center gap-2" (ngSubmit)="confirmSetup()">
+                    <input class="w-40 p-2 rounded bg-white text-center tracking-[0.3em]" name="setupCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" [(ngModel)]="setupCode" placeholder="Code" aria-label="Code aus der E-Mail" />
+                    <button class="px-4 py-2 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white disabled:opacity-60" type="submit" [disabled]="busy()">Bestätigen und einrichten</button>
+                    <button class="text-sm underline" type="button" (click)="cancelSetup()">Abbrechen</button>
+                </form>
+            }
+
+            @if (unlockMessage()) {
+                <p class="text-sm">{{ unlockMessage() }}</p>
+            }
+            @if (unlockError()) {
+                <p class="p-2 rounded bg-red-200 text-red-900 text-sm" role="alert">{{ unlockError() }}</p>
+            }
+
+            @if (devices().length) {
+                <ul class="flex flex-col gap-2 text-sm">
+                    @for (d of devices(); track d.id) {
+                        <li class="flex flex-wrap items-center justify-between gap-2 rounded bg-white p-2">
+                            <span>
+                                <b>{{ d.name }}</b>@if (d.thisDevice) { (dieses Gerät) }
+                                <span class="block text-xs">{{ d.domain }} · eingerichtet {{ formatDate(d.createdAt) }} · zuletzt benutzt {{ formatDate(d.lastUsedAt) }}</span>
+                            </span>
+                            <button class="text-sm underline disabled:opacity-60" [disabled]="busy()" (click)="removeDevice(d)">Entfernen</button>
+                        </li>
+                    }
+                </ul>
+            }
+        </section>
+
+        <!-- Passwort -->
+        <section class="rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-4 flex flex-col gap-3">
+            <h2 class="font-semibold text-lg">Passwort ändern</h2>
+            @if (passwordHint()) {
+                <p class="text-sm font-semibold">Du hast dich mit einem E-Mail-Code angemeldet. Lege hier ein neues Passwort fest.</p>
+            }
+            <form class="flex flex-col gap-2 max-w-sm" (ngSubmit)="changePassword()">
+                <input type="hidden" name="username" autocomplete="username" [value]="email" />
+                <input class="p-2 rounded bg-white" name="newPassword" type="password" autocomplete="new-password" [(ngModel)]="newPassword" placeholder="Neues Passwort" aria-label="Neues Passwort" />
+                <input class="p-2 rounded bg-white" name="repeatPassword" type="password" autocomplete="new-password" [(ngModel)]="repeatPassword" placeholder="Neues Passwort wiederholen" aria-label="Neues Passwort wiederholen" />
+                @if (passwordNeedsCode()) {
+                    <input class="p-2 rounded bg-white tracking-[0.3em]" name="passwordNonce" inputmode="numeric" autocomplete="one-time-code" [(ngModel)]="passwordNonce" placeholder="Code aus der E-Mail" aria-label="Code aus der E-Mail" />
+                }
+                <button class="self-start px-4 py-2 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white disabled:opacity-60" type="submit" [disabled]="busy()">Passwort speichern</button>
+            </form>
+            @if (passwordMessage()) {
+                <p class="text-sm">{{ passwordMessage() }}</p>
+            }
+            @if (passwordError()) {
+                <p class="p-2 rounded bg-red-200 text-red-900 text-sm" role="alert">{{ passwordError() }}</p>
+            }
+        </section>
+    </div>
+</div>

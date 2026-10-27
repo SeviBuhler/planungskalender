@@ -26,5 +26,10 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/households/households').then((m) => m.Households),
         canActivate: [authGuard]
     },
+    {
+        path: 'settings',
+        loadComponent: () => import('./pages/settings/settings').then((m) => m.Settings),
+        canActivate: [authGuard]
+    },
     { path: '', redirectTo: 'login', pathMatch: 'full' }
 ];

@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
 import { ConfirmDialog } from './components/confirm/confirm';
 import { Supabase } from './services/supabase';
+import { ThemeService } from './services/theme';
 
 @Component({
   selector: 'app-root',
@@ -14,6 +15,8 @@ export class App {
   protected readonly title = signal('ForTwo');
   private readonly supabase = inject(Supabase);
   private readonly router = inject(Router);
+  // Created at start so the chosen theme follows device changes on every page
+  private readonly theme = inject(ThemeService);
 
   // The PWA often stays open for days: when it comes back to the front, end a login older than 7 days
   async checkLogin() {
