@@ -1,4 +1,4 @@
-<div class="flex flex-col min-h-screen bg-gray-300 dark:bg-gray-800 p-3 md:p-6 text-sky-950 dark:text-sky-100" [class.fill-screen]="fillsScreen()">
+<div class="flex flex-col min-h-screen bg-gray-300 dark:bg-gray-800 p-3 md:p-6 text-sky-950 dark:text-sky-100 fill-screen">
     <app-page-header title="Kalender" [mobileTitle]="mobileTitle()" addLabel="Neuer Termin" (add)="newEvent()">
         <app-view-picker headerActions [view]="view()" (viewChange)="setView($event)" />
         <ng-container menuItems>
@@ -81,23 +81,23 @@
         </div>
     }
 
-    <div class="swipe-area relative flex-1 select-none md:px-14" [class.max-md:min-h-0]="fillsScreen()" [class.max-md:flex]="fillsScreen()" [class.max-md:flex-col]="fillsScreen()"
+    <div class="swipe-area relative flex-1 select-none md:px-14 max-md:min-h-0 max-md:flex max-md:flex-col"
          (pointerdown)="onPointerDown($event)" (pointermove)="onPointerMove($event)" (pointerup)="onPointerUp($event)" (pointercancel)="onPointerCancel()">
         <button class="hidden md:flex absolute left-0 top-0 bottom-0 w-12 items-center justify-center rounded-lg bg-indigo-600/10 hover:bg-indigo-600/30 text-3xl text-indigo-800 dark:text-sky-100"
                 (click)="previous()" aria-label="Zurück">‹</button>
         <button class="hidden md:flex absolute right-0 top-0 bottom-0 w-12 items-center justify-center rounded-lg bg-indigo-600/10 hover:bg-indigo-600/30 text-3xl text-indigo-800 dark:text-sky-100"
                 (click)="next()" aria-label="Weiter">›</button>
 
-        <div class="overflow-hidden" [class.max-md:flex-1]="fillsScreen()" [class.max-md:min-h-0]="fillsScreen()">
+        <div class="overflow-hidden max-md:flex-1 max-md:min-h-0">
             <!-- Carousel: previous, current and next page side by side; the track follows the finger -->
-            <div class="flex items-start" [class.max-md:h-full]="fillsScreen()" [style.transform]="trackTransform()"
+            <div class="flex items-start max-md:h-full" [style.transform]="trackTransform()"
                  [class.transition-transform]="trackAnimated()" [class.duration-300]="trackAnimated()" [class.ease-out]="trackAnimated()">
                 @for (page of pages(); track page.key) {
-                    <div class="w-full shrink-0 px-1.5" [class]="(page.offset === 0 ? fadeClass() : '') + (fillsScreen() ? ' max-md:flex max-md:h-full max-md:flex-col' : '')" [attr.aria-hidden]="page.offset !== 0 ? 'true' : null"
+                    <div class="w-full shrink-0 px-1.5 max-md:flex max-md:h-full max-md:flex-col" [class]="page.offset === 0 ? fadeClass() : ''" [attr.aria-hidden]="page.offset !== 0 ? 'true' : null"
                          [attr.inert]="page.offset !== 0 ? '' : null">
                         @switch (view()) {
                             @case ('year') {
-                                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 max-md:min-h-0 max-md:flex-1 max-md:overflow-y-auto max-md:overscroll-contain">
                                     @for (m of page.yearMonths; track m.month) {
                                         <section class="rounded-lg bg-gray-100 text-indigo-950 shadow p-2">
                                             <button class="w-full text-left font-semibold capitalize mb-1 hover:text-fuchsia-600" (click)="openMonth(m.month)">{{ m.label }}</button>
@@ -114,6 +114,7 @@
                                             </div>
                                         </section>
                                     }
+                                    <div class="bar-spacer col-span-full" aria-hidden="true"></div>
                                 </div>
                             }
 
@@ -123,9 +124,9 @@
                                         <div>{{ weekday }}</div>
                                     }
                                 </div>
-                                <div class="grid grid-cols-7 gap-1">
+                                <div class="grid grid-cols-7 gap-1 max-md:min-h-0 max-md:flex-1 max-md:auto-rows-fr">
                                     @for (day of page.monthDays; track day.date.getTime()) {
-                                        <div class="min-h-20 md:min-h-28 rounded-lg p-1 text-left shadow cursor-pointer overflow-hidden"
+                                        <div class="md:min-h-28 rounded-lg p-1 text-left shadow cursor-pointer overflow-hidden"
                                              [class.bg-gray-100]="day.inMonth" [class.bg-gray-200]="!day.inMonth" [class.opacity-50]="!day.inMonth"
                                              (click)="openDay(day.date)">
                                             <span class="inline-flex h-6 w-6 items-center justify-center rounded-full text-sm"
@@ -144,6 +145,7 @@
                                         </div>
                                     }
                                 </div>
+                                <div class="bar-spacer" aria-hidden="true"></div>
                             }
 
                             @case ('week') {
