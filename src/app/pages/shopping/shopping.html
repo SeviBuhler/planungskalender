@@ -105,7 +105,7 @@
                                 }
                             </ul>
                             <p class="flex justify-between gap-2 px-3 py-1.5 border-t border-gray-100 text-xs text-gray-500">
-                                <span>{{ searching() ? 'Suche Produkte…' : '' }}</span>
+                                <span>{{ searching() ? 'Suche Produkte…' : searchFailed() ? 'Produktsuche gerade nicht erreichbar' : '' }}</span>
                                 <span class="shrink-0">Produktdaten: <a class="underline" href="https://ch-de.openfoodfacts.org" target="_blank" rel="noopener" (pointerdown)="$event.preventDefault()">Open Food Facts</a></span>
                             </p>
                         </div>

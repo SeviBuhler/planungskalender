@@ -1,0 +1,31 @@
+# Holt einmal im Monat die in der Schweiz verkauften Produkte aus dem Open-Food-Facts-Export
+# in die Supabase-Tabelle "products" (scripts/import-products.mjs).
+# Braucht die Repository-Secrets SUPABASE_URL und SUPABASE_SERVICE_ROLE_KEY
+# (GitHub: Settings > Secrets and variables > Actions). Manuell starten: Actions > Produkte importieren > Run workflow.
+name: Produkte importieren
+
+on:
+  schedule:
+    - cron: '0 3 2 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: import-products
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node scripts/import-products.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

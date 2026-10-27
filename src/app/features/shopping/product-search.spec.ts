@@ -1,24 +1,31 @@
-import { ProductSearch, safeImageUrl, searchUrl, toProduct } from './product-search';
+import { ProductSearch, safeImageUrl, toProduct } from './product-search';
+import { Supabase } from '../../services/supabase';
 
 const IMAGE = 'https://images.openfoodfacts.org/images/products/761/340/411/0285/front_de.3.200.jpg';
 
-describe('product search', () => {
-  it('maps a hit and prefers the German name', () => {
-    expect(
-      toProduct({
-        code: '7613404110285',
-        product_name: 'Lait entier',
-        product_name_de: 'Vollmilch',
-        brands: 'Migros,M-Classic',
-        quantity: '1 l',
-        image_front_small_url: IMAGE,
-      })
-    ).toEqual({ code: '7613404110285', name: 'Vollmilch', brand: 'Migros', quantity: '1 l', imageUrl: IMAGE });
-  });
+function fakeSupabase(result: { data: unknown; error: unknown }) {
+  const calls: { fn: string; args: unknown; signal?: AbortSignal }[] = [];
+  const client = {
+    rpc(fn: string, args: unknown) {
+      const call: { fn: string; args: unknown; signal?: AbortSignal } = { fn, args };
+      calls.push(call);
+      const query = {
+        abortSignal(signal: AbortSignal) {
+          call.signal = signal;
+          return query;
+        },
+        then: (resolve: (value: unknown) => unknown, reject?: (reason: unknown) => unknown) => Promise.resolve(result).then(resolve, reject),
+      };
+      return query;
+    },
+  };
+  return { supabase: { client } as unknown as Supabase, calls };
+}
 
-  it('falls back to other languages, accepts brand lists and skips hits without a name', () => {
-    expect(toProduct({ code: '1', product_name_fr: 'Pain', brands: ['Coop'] })).toMatchObject({ name: 'Pain', brand: 'Coop', imageUrl: null });
-    expect(toProduct({ code: '2', product_name: '  ' })).toBeNull();
+describe('product search', () => {
+  it('maps a row from the product table', () => {
+    expect(toProduct({ code: '7613404110285', name: 'Vollmilch', brand: 'Migros', quantity: '1 l', image_url: IMAGE }))
+      .toEqual({ code: '7613404110285', name: 'Vollmilch', brand: 'Migros', quantity: '1 l', imageUrl: IMAGE });
   });
 
   it('only keeps images from Open Food Facts', () => {
@@ -27,24 +34,21 @@ describe('product search', () => {
     expect(safeImageUrl(42)).toBeNull();
   });
 
-  it('searches Swiss products and strips query syntax', () => {
-    const url = new URL(searchUrl('Milch "bio" (1l) -x*'));
-    expect(url.origin + url.pathname).toBe('https://search.openfoodfacts.org/search');
-    expect(url.searchParams.get('q')).toBe('Milch bio 1l x countries_tags:"en:switzerland"');
-    expect(url.searchParams.get('langs')).toBe('de,fr,it,en');
+  it('searches the own product table, caches results and ignores short terms', async () => {
+    const { supabase, calls } = fakeSupabase({ data: [{ code: '1', name: 'Milch', brand: null, quantity: null, image_url: null }], error: null });
+    const search = new ProductSearch(supabase);
+    expect(await search.search('mi')).toEqual([]);
+    const abort = new AbortController();
+    expect(await search.search('Milch', abort.signal)).toEqual([{ code: '1', name: 'Milch', brand: null, quantity: null, imageUrl: null }]);
+    expect(await search.search('milch ')).toHaveLength(1);
+    expect(calls).toEqual([{ fn: 'search_products', args: { term: 'milch' }, signal: abort.signal }]);
   });
 
-  it('caches results and ignores short terms', async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ hits: [{ code: '1', product_name: 'Milch' }, { code: '1', product_name: 'Milch' }] })));
-    vi.stubGlobal('fetch', fetchMock);
-    try {
-      const search = new ProductSearch();
-      expect(await search.search('mi')).toEqual([]);
-      expect(await search.search('Milch')).toHaveLength(1);
-      expect(await search.search('milch ')).toHaveLength(1);
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-    } finally {
-      vi.unstubAllGlobals();
-    }
+  it('reports errors and does not cache them', async () => {
+    const { supabase, calls } = fakeSupabase({ data: null, error: { message: 'Funktion fehlt' } });
+    const search = new ProductSearch(supabase);
+    await expect(search.search('milch')).rejects.toMatchObject({ message: 'Funktion fehlt' });
+    await expect(search.search('milch')).rejects.toBeTruthy();
+    expect(calls).toHaveLength(2);
   });
 });

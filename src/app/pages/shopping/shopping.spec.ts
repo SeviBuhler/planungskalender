@@ -73,8 +73,10 @@ const VOLLMILCH: Product = {
 
 class FakeProductSearch {
   terms: string[] = [];
+  fail = false;
   async search(term: string) {
     this.terms.push(term);
+    if (this.fail) throw new Error('offline');
     return term.toLowerCase().startsWith('mil') ? [VOLLMILCH] : [];
   }
 }
@@ -218,6 +220,24 @@ describe('Shopping', () => {
     await component.saveSettings();
     expect(component.listHousehold()?.name).toBe('WG');
     expect(store.lists[0].householdId).toBe('h1');
+  });
+
+  it('says when the product search is not reachable and keeps the own suggestions', async () => {
+    await create();
+    component.suggestions.set(['Milchreis']);
+    products.fail = true;
+    vi.useFakeTimers();
+    try {
+      component.onNameInput('milc');
+      await vi.advanceTimersByTimeAsync(500);
+      expect(component.searchFailed()).toBe(true);
+      expect(component.showSuggestions()).toBe(true);
+      expect(component.suggestionRows()).toEqual([{ kind: 'own', name: 'Milchreis' }]);
+      component.onNameInput('milch');
+      expect(component.searchFailed()).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('suggests own items and Open Food Facts products while typing', async () => {

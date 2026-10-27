@@ -20,6 +20,7 @@ Die Finanzplanung speichert ihre Daten in Supabase. Die Tabellen, Zugriffsregeln
 - `finance_plans`: Finanzpläne mit Besitzer:in. Ohne `household_id` ist ein Plan privat. Mit `household_id` sehen und bearbeiten ihn alle Mitglieder des Haushalts (sofern das Modul Finanzplanung eingeschaltet ist). Nur die Besitzer:in kann ihn umbenennen, teilen, wieder privat machen oder löschen.
 - `month_budgets`: ein Eintrag pro Plan und Monat, der Monatsplan liegt als JSON in `data`.
 - `calendar_events`: Termine, privat oder in einem Haushalt mit Modul Kalender (dort dürfen alle Mitglieder sie bearbeiten). Termine, die seit mehr als 5 Jahren vorbei sind, löscht ein täglicher pg_cron-Job (`purge-old-calendar-events`). Jeder Termin kann eine Kategorie haben. Wiederkehrende Termine sind einzelne Zeilen mit derselben `series_id` (maximal 1000 pro Serie), damit jeder Termin einzeln geändert werden kann.
+- `products`: die in der Schweiz verkauften Produkte aus [Open Food Facts](https://ch-de.openfoodfacts.org) (Lizenz ODbL) für die Vorschläge in der Einkaufsliste, gesucht mit der Funktion `search_products`. Gefüllt von `scripts/import-products.mjs`, das die GitHub Action „Produkte importieren“ jeden Monat ausführt. Dafür braucht das Repository die Secrets `SUPABASE_URL` und `SUPABASE_SERVICE_ROLE_KEY` (Supabase: Project Settings > API Keys, den geheimen Service-Key). Den ersten Import unter **Actions > Produkte importieren > Run workflow** von Hand starten.
 
 ## Code scaffolding
 
