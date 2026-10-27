@@ -58,6 +58,7 @@
             @if (isOwner()) {
                 <button class="px-3 py-2 rounded-lg shadow bg-gray-100 text-indigo-800 hover:bg-fuchsia-100" (click)="openSettings()">Bearbeiten</button>
             }
+            <button class="px-3 py-2 rounded-lg shadow bg-gray-100 text-indigo-800 hover:bg-fuchsia-100" [attr.aria-expanded]="dealsOpen()" (click)="dealsOpen.set(!dealsOpen())">Läden &amp; Aktionen</button>
             <button class="px-3 py-2 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white" (click)="openNewList()">+ Neue Liste</button>
         </div>
         <p class="mb-4 text-sm">
@@ -69,6 +70,9 @@
         </p>
         @if (panel() !== 'none') {
             <ng-container [ngTemplateOutlet]="listPanel" />
+        }
+        @if (dealsOpen()) {
+            <app-store-deals (add)="addFromDeal($event)" (close)="dealsOpen.set(false)" />
         }
 
         <section class="rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-3 md:p-4">
@@ -147,7 +151,7 @@
     }
 
     <ng-template #row let-item>
-        <li animate.enter="anim-fade-in" class="group flex items-center gap-3 py-1.5 border-b border-gray-200 last:border-b-0">
+        <li animate.enter="anim-fade-in" class="group flex flex-wrap items-center gap-x-3 py-1.5 border-b border-gray-200 last:border-b-0">
             <input type="checkbox" class="size-5 shrink-0 accent-indigo-600" [checked]="item.checked" (change)="toggle(item)" [attr.aria-label]="item.name + ' abhaken'" />
             @if (item.imageUrl) {
                 <img class="size-10 shrink-0 rounded-lg object-contain bg-white" [class.opacity-50]="item.checked" [src]="item.imageUrl" alt="" loading="lazy" referrerpolicy="no-referrer" />
@@ -165,7 +169,43 @@
                     }
                 </button>
             }
+            @if (!item.checked && storePrices.chains().length > 0 && editingId() !== item.id) {
+                @if (bestPrice(item); as best) {
+                    <button class="shrink-0 flex flex-col items-end px-2 py-0.5 rounded hover:bg-fuchsia-100 text-xs" [attr.aria-expanded]="priceOpenId() === item.id"
+                            (click)="togglePrices(item)" [attr.aria-label]="'Preise für ' + item.name">
+                        <span><span class="text-gray-600">ab</span> <span class="font-semibold text-sm">{{ formatPrice(best.price) }}</span></span>
+                        <span class="text-gray-600">{{ chainLabel(best.chain) }}@if (best.promotion) { <span class="px-1 rounded bg-red-600 text-white">Aktion</span>}</span>
+                    </button>
+                } @else if (priceState(item)?.status === 'loading') {
+                    <span class="shrink-0 px-2 text-xs text-gray-500" aria-label="Preise werden gesucht">…</span>
+                }
+            }
             <button class="shrink-0 px-2 py-1 rounded text-gray-500 hover:bg-red-100 hover:text-red-700" (click)="removeItem(item)" [attr.aria-label]="item.name + ' entfernen'">✕</button>
+            @if (priceOpenId() === item.id && !item.checked) {
+                <div animate.enter="anim-drop-in" class="basis-full mt-1 mb-1 ml-8 rounded-lg bg-white p-2 text-sm">
+                    <ul class="flex flex-col gap-1">
+                        @for (r of priceState(item)?.results ?? []; track r.chain) {
+                            <li class="flex items-center gap-2">
+                                <span class="w-14 shrink-0 font-semibold text-xs">{{ chainLabel(r.chain) }}</span>
+                                @if (r.products[0]; as p) {
+                                    @if (p.url) {
+                                        <a class="flex-1 min-w-0 truncate underline decoration-gray-300" [href]="p.url" target="_blank" rel="noopener noreferrer">{{ p.name }}@if (p.size) { · {{ p.size }}}</a>
+                                    } @else {
+                                        <span class="flex-1 min-w-0 truncate">{{ p.name }}@if (p.size) { · {{ p.size }}}</span>
+                                    }
+                                    @if (p.promotion) {
+                                        <span class="shrink-0 px-1 rounded bg-red-600 text-white text-xs">{{ p.promotion }}</span>
+                                    }
+                                    <span class="shrink-0 font-semibold">{{ formatPrice(p.price) }}</span>
+                                } @else {
+                                    <span class="flex-1 text-gray-500">{{ r.error ?? 'nichts gefunden' }}</span>
+                                }
+                            </li>
+                        }
+                    </ul>
+                    <p class="mt-1 text-xs text-gray-500">Bester Treffer pro Laden, Angaben ohne Gewähr.</p>
+                </div>
+            }
         </li>
     </ng-template>
 </div>
