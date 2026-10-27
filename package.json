@@ -20,6 +20,8 @@
     "@angular/service-worker": "^22.0.0",
     "@simplewebauthn/browser": "^14.0.0",
     "@supabase/supabase-js": "^2.110.8",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.9",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },

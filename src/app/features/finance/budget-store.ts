@@ -87,6 +87,19 @@ export class BudgetStore {
     return data ? normalizeBudget(data.data as MonthBudget) : null;
   }
 
+  // All saved months from `from` to `to` (YYYY-MM, inclusive), oldest first
+  async loadRange(planId: string, from: string, to: string): Promise<MonthBudget[]> {
+    const { data, error } = await this.supabase.client
+      .from('month_budgets')
+      .select('data')
+      .eq('plan_id', planId)
+      .gte('month', from)
+      .lte('month', to)
+      .order('month');
+    if (error) throw error;
+    return (data as { data: MonthBudget }[]).map((row) => normalizeBudget(row.data));
+  }
+
   async save(planId: string, budget: MonthBudget): Promise<void> {
     const { error } = await this.supabase.client
       .from('month_budgets')

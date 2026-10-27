@@ -50,6 +50,7 @@
         @if (isOwner()) {
             <button class="px-3 py-2 rounded-lg shadow bg-gray-100 text-indigo-800 hover:bg-fuchsia-100" (click)="openSettings()">Bearbeiten</button>
         }
+        <button class="px-3 py-2 rounded-lg shadow bg-gray-100 text-indigo-800 hover:bg-fuchsia-100" [class.hidden]="showSummary()" (click)="openSummary()">Zusammenfassung</button>
         <button class="px-3 py-2 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white" (click)="openNewPlan()">+ Neuer Plan</button>
     </div>
     <p class="mb-4 text-sm">
@@ -91,6 +92,9 @@
             </div>
         </section>
     }
+    @if (showSummary() && plan(); as p) {
+        <app-finance-summary [plan]="p" [visibility]="visibilityLabel()" [startMonth]="budget().month" (close)="showSummary.set(false)" />
+    } @else {
     <div class="flex items-center justify-between gap-2 mb-4">
         <button class="px-4 py-2 rounded-lg shadow bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white" (click)="goToPreviousMonth()" aria-label="Vorheriger Monat">‹</button>
         <div class="text-center">
@@ -201,6 +205,7 @@
             }
         </aside>
     </div>
+    }
     }
     }
 </div>
