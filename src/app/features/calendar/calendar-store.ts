@@ -18,10 +18,11 @@ interface EventRow {
   series_id: string | null;
   recurrence: Recurrence | null;
   recurrence_until: string | null;
+  reminder_minutes: number | null;
 }
 
 const COLUMNS =
-  'id, title, description, starts_at, ends_at, all_day, owner_id, household_id, category, series_id, recurrence, recurrence_until';
+  'id, title, description, starts_at, ends_at, all_day, owner_id, household_id, category, series_id, recurrence, recurrence_until, reminder_minutes';
 
 function toEvent(row: EventRow): CalendarEvent {
   return {
@@ -37,6 +38,7 @@ function toEvent(row: EventRow): CalendarEvent {
     seriesId: row.series_id,
     recurrence: row.recurrence,
     recurrenceUntil: row.recurrence_until,
+    reminderMinutes: row.reminder_minutes,
   };
 }
 
@@ -63,6 +65,7 @@ function toRow(input: EventInput) {
     series_id: input.seriesId,
     recurrence: input.recurrence,
     recurrence_until: input.recurrenceUntil,
+    reminder_minutes: input.reminderMinutes,
   };
 }
 
@@ -103,8 +106,9 @@ export class CalendarStore {
     for (const key of new Set(events.map((e) => e.seriesKey).filter((k): k is string => k !== null))) {
       seriesIds.set(key, await seriesUuid(`${owner}|${key}`));
     }
-    const rows = events.map((e) => ({
-      ...toRow({
+    // Reminders are left out, so importing the file again keeps the ones set in ForTwo
+    const rows = events.map((e) => {
+      const { reminder_minutes, ...row } = toRow({
         title: e.title,
         description: e.description,
         start: e.start,
@@ -115,9 +119,10 @@ export class CalendarStore {
         seriesId: e.seriesKey ? seriesIds.get(e.seriesKey)! : null,
         recurrence: e.seriesKey ? e.recurrence : null,
         recurrenceUntil: e.seriesKey ? e.recurrenceUntil : null,
-      }),
-      import_key: e.key,
-    }));
+        reminderMinutes: null,
+      });
+      return { ...row, import_key: e.key };
+    });
     for (let i = 0; i < rows.length; i += IMPORT_CHUNK) {
       const { error } = await this.supabase.client
         .from('calendar_events')

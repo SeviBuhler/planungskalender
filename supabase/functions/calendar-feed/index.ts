@@ -21,6 +21,7 @@ interface FeedEvent {
   all_day: boolean;
   category: string | null;
   household: string | null; // name of the household the event is shared with
+  reminder_minutes: number | null; // minutes before the start, negative = after
   created_at: string;
 }
 
@@ -67,6 +68,13 @@ function localDate(iso: string, timeZone: string): string {
   return `${get('year')}${get('month')}${get('day')}`;
 }
 
+// Offset from the start: -PT15M is 15 minutes before, PT9H is 9 hours after
+function trigger(minutesBefore: number): string {
+  const minutes = Math.abs(minutesBefore);
+  const duration = minutes === 0 ? 'PT0M' : minutes % 60 === 0 ? `PT${minutes / 60}H` : `PT${minutes}M`;
+  return minutesBefore > 0 ? `-${duration}` : duration;
+}
+
 function buildCalendar(events: FeedEvent[], timeZone: string, now = new Date()): string {
   const stamp = utcStamp(now.toISOString());
   const lines = [
@@ -93,6 +101,9 @@ function buildCalendar(events: FeedEvent[], timeZone: string, now = new Date()):
       `SUMMARY:${escapeText(event.title)}`,
       ...(details.length ? [`DESCRIPTION:${escapeText(details.join('\n\n'))}`] : []),
       ...(event.category ? [`CATEGORIES:${escapeText(CATEGORY_LABELS[event.category] ?? event.category)}`] : []),
+      ...(event.reminder_minutes === null
+        ? []
+        : ['BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${escapeText(event.title)}`, `TRIGGER:${trigger(event.reminder_minutes)}`, 'END:VALARM']),
       'END:VEVENT'
     );
   }
@@ -152,7 +163,7 @@ Deno.serve(async (req) => {
 
   const { data: rows, error: eventError } = await admin
     .from('calendar_events')
-    .select('id, title, description, starts_at, ends_at, all_day, category, household_id, created_at')
+    .select('id, title, description, starts_at, ends_at, all_day, category, household_id, created_at, reminder_minutes')
     .or(visibility)
     .lt('starts_at', to)
     .gte('ends_at', from)

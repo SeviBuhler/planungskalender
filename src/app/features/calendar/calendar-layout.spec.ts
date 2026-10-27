@@ -1,7 +1,7 @@
 import { CalendarEvent, buildMonthGrid, buildWeek, eventsOnDay, isoWeek, layoutDay, shiftDate, visibleRange } from './calendar-layout';
 
 function event(id: string, start: Date, end: Date, allDay = false): CalendarEvent {
-  return { id, title: id, description: null, start, end, allDay, ownerId: 'a', householdId: null, category: null, seriesId: null, recurrence: null, recurrenceUntil: null };
+  return { id, title: id, description: null, start, end, allDay, ownerId: 'a', householdId: null, category: null, seriesId: null, recurrence: null, recurrenceUntil: null, reminderMinutes: null };
 }
 
 const at = (hour: number, minute = 0, day = 3) => new Date(2026, 10, day, hour, minute);

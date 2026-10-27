@@ -19,7 +19,7 @@ import {
   visibleRange,
 } from '../../features/calendar/calendar-layout';
 import { CalendarStore, EventInput } from '../../features/calendar/calendar-store';
-import { CATEGORIES, DEFAULT_DOT, DEFAULT_TILE, MAX_OCCURRENCES, RECURRENCES, occurrences } from '../../features/calendar/recurrence';
+import { ALL_DAY_REMINDERS, CATEGORIES, REMINDERS, DEFAULT_DOT, DEFAULT_TILE, MAX_OCCURRENCES, RECURRENCES, occurrences } from '../../features/calendar/recurrence';
 import { Household, HouseholdStore } from '../../features/households/household-store';
 import { ConfirmService } from '../../components/confirm/confirm';
 import { Select, SelectOption } from '../../components/select/select';
@@ -61,6 +61,7 @@ interface EventForm {
   endTime: string;
   householdChoice: string; // 'private' or a household id
   category: Category | '';
+  reminder: string; // minutes before the start, '' = none
   recurrence: Recurrence | 'none';
   recurrenceUntil: string;
   scope: 'one' | 'following'; // which occurrences of a series a change applies to
@@ -120,6 +121,14 @@ export class Calendar {
   readonly recurrenceOptions: SelectOption[] = [
     { value: 'none', label: 'Nie' },
     ...RECURRENCES.map((r) => ({ value: r.id, label: r.label })),
+  ];
+  readonly reminderOptions: SelectOption[] = [
+    { value: '', label: 'Keine' },
+    ...REMINDERS.map((r) => ({ value: String(r.minutes), label: r.label })),
+  ];
+  readonly allDayReminderOptions: SelectOption[] = [
+    { value: '', label: 'Keine' },
+    ...ALL_DAY_REMINDERS.map((r) => ({ value: String(r.minutes), label: r.label })),
   ];
   readonly categoryOptions: SelectOption[] = [
     { value: '', label: 'Keine' },
@@ -466,6 +475,7 @@ export class Calendar {
       endTime: timeInput(to),
       householdChoice: 'private',
       category: '',
+      reminder: '',
       recurrence: 'none',
       recurrenceUntil: '',
       scope: 'one',
@@ -493,6 +503,7 @@ export class Calendar {
       endTime: timeInput(event.end),
       householdChoice: event.householdId ?? 'private',
       category: event.category ?? '',
+      reminder: event.reminderMinutes === null ? '' : String(event.reminderMinutes),
       recurrence: event.recurrence ?? 'none',
       recurrenceUntil: event.recurrenceUntil ?? '',
       scope: 'one',
@@ -500,6 +511,8 @@ export class Calendar {
   }
 
   patchForm(changes: Partial<EventForm>) {
+    // The reminder choices differ between timed and all-day events
+    if (changes.allDay !== undefined && changes.allDay !== this.form()?.allDay) changes = { ...changes, reminder: '' };
     this.form.update((f) => (f ? { ...f, ...changes } : f));
   }
 
@@ -539,6 +552,7 @@ export class Calendar {
       allDay: f.allDay,
       householdId: f.householdChoice === 'private' ? null : f.householdChoice,
       category: f.category || null,
+      reminderMinutes: f.reminder === '' ? null : Number(f.reminder),
     };
     const original = f.original;
     const repeat = this.showRecurrence(f) && f.recurrence !== 'none' ? f.recurrence : null;
