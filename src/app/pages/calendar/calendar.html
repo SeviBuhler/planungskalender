@@ -9,6 +9,12 @@
                 </svg>
                 <span>Abo<span class="block text-xs opacity-60">Mit Handy-Kalender verbinden</span></span>
             </button>
+            <button role="menuitem" type="button" [class]="menuItem" (click)="remindersOpen.set(true)">
+                <svg class="size-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z" /><path d="M10 20a2 2 0 0 0 4 0" />
+                </svg>
+                <span>Erinnerungen<span class="block text-xs opacity-60">Mitteilungen auf diesem Gerät</span></span>
+            </button>
             <button role="menuitem" type="button" [class]="menuItem" (click)="importOpen.set(true)">
                 <svg class="size-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M12 4v11M7.5 10.5L12 15l4.5-4.5" /><path d="M4 17v1.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V17" />
@@ -34,6 +40,7 @@
         }
         <div class="flex gap-2">
             <button class="px-3 py-1.5 rounded-lg shadow bg-gray-100 text-indigo-800 hover:bg-fuchsia-100" (click)="subscribeOpen.set(true)" title="Mit Handy-Kalender verbinden">Abo</button>
+            <button class="px-3 py-1.5 rounded-lg shadow bg-gray-100 text-indigo-800 hover:bg-fuchsia-100" (click)="remindersOpen.set(true)" title="Mitteilungen auf diesem Gerät">Erinnerungen</button>
             <button class="px-3 py-1.5 rounded-lg shadow bg-gray-100 text-indigo-800 hover:bg-fuchsia-100" (click)="importOpen.set(true)" title="Kalender aus Datei importieren">Import</button>
             <button class="px-3 py-1.5 rounded-lg shadow bg-gray-100 text-indigo-800 hover:bg-fuchsia-100" (click)="goToToday()">Heute</button>
             <button class="px-3 py-1.5 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white" (click)="newEvent()">+ Termin</button>
@@ -252,6 +259,10 @@
             </div>
         </div>
     </div>
+
+    @if (remindersOpen()) {
+        <app-reminder-dialog (closed)="remindersOpen.set(false)" />
+    }
 
     @if (subscribeOpen()) {
         <app-subscribe-dialog (closed)="subscribeOpen.set(false)" />
