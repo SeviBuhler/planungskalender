@@ -34,6 +34,15 @@
   :has(> app-page-header) { padding-bottom: calc(max(1rem, env(safe-area-inset-bottom)) + 5.25rem); }
 }
 
+/* Phones: pages that hold the screen still (calendar week/day, shopping list) and scroll one
+   card inside. The card runs under the bottom bar; a spacer lets its last row scroll above it. */
+.bar-spacer { display: none; }
+@media (max-width: 47.99rem) {
+  .fill-screen { height: 100dvh; min-height: 0; overflow: hidden; padding-bottom: 0; display: flex; flex-direction: column; }
+  html:has(.fill-screen), html:has(.fill-screen) body { overflow: hidden; overscroll-behavior: none; }
+  .bar-spacer { display: block; flex-shrink: 0; height: calc(max(1rem, env(safe-area-inset-bottom)) + 5.25rem); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   [class*='anim-'] { animation-duration: 1ms !important; }
 }
