@@ -13,10 +13,10 @@ function errorMessage(error: unknown): string {
 @Component({
   selector: 'app-subscribe-dialog',
   template: `
-    <div class="fixed inset-0 z-10 flex items-end sm:items-center justify-center bg-black/40 p-3"
+    <div class="dialog-backdrop fixed inset-0 flex items-center justify-center bg-black/40 p-3"
          animate.enter="anim-fade-in" animate.leave="anim-fade-out" (click)="closed.emit()">
       <section animate.enter="anim-dialog-in" animate.leave="anim-dialog-out"
-               class="w-full max-w-lg rounded-2xl bg-gray-100 text-indigo-950 shadow-2xl p-4 flex flex-col gap-3 max-h-[90vh] overflow-y-auto"
+               class="w-full max-w-lg rounded-2xl bg-gray-100 text-indigo-950 shadow-2xl p-4 flex flex-col gap-3"
                (click)="$event.stopPropagation()">
         <h2 class="font-semibold text-xl">Mit Handy-Kalender verbinden</h2>
         <p class="text-sm">
