@@ -1,4 +1,4 @@
-import { ProductSearch, safeImageUrl, searchUrl, toProduct } from './product-search';
+import { ProductSearch, fallbackUrl, safeImageUrl, searchUrl, toProduct } from './product-search';
 
 const IMAGE = 'https://images.openfoodfacts.org/images/products/761/340/411/0285/front_de.3.200.jpg';
 
@@ -45,6 +45,63 @@ describe('product search', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
     } finally {
       vi.unstubAllGlobals();
+    }
+  });
+
+  it('builds the classic search for Swiss products', () => {
+    const url = new URL(fallbackUrl('Milch "bio"'));
+    expect(url.origin + url.pathname).toBe('https://world.openfoodfacts.org/cgi/search.pl');
+    expect(url.searchParams.get('search_terms')).toBe('Milch bio');
+    expect(url.searchParams.get('tag_0')).toBe('en:switzerland');
+    expect(url.searchParams.get('json')).toBe('1');
+  });
+
+  it('falls back to the classic search, then skips the failing search and spaces out requests', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.startsWith('https://search.openfoodfacts.org/')) throw new TypeError('Failed to fetch');
+      return new Response(JSON.stringify({ products: [{ code: '1', product_name: 'Ovomaltine' }] }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const search = new ProductSearch();
+      expect(await search.search('ovo')).toEqual([expect.objectContaining({ name: 'Ovomaltine' })]);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+
+      // The next term waits for the classic search's rate limit and does not try Search-a-licious again
+      let done = false;
+      const next = search.search('ovom').then(() => (done = true));
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(done).toBe(false);
+      await vi.advanceTimersByTimeAsync(6000);
+      await next;
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(String(fetchMock.mock.calls[2][0])).toContain('cgi/search.pl');
+    } finally {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+  });
+
+  it('gives up on a search that hangs and cancels cleanly', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((_, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const search = new ProductSearch();
+      const failed = search.search('ovo').catch((error: Error) => error.message);
+      await vi.advanceTimersByTimeAsync(14000);
+      expect(await failed).toBe('Produktsuche antwortet nicht');
+
+      const abort = new AbortController();
+      const cancelled = search.search('milch', abort.signal).catch((error: Error) => error.name);
+      abort.abort();
+      expect(await cancelled).toBe('AbortError');
+    } finally {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
     }
   });
 });

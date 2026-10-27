@@ -85,6 +85,7 @@ export class Shopping implements OnDestroy {
   private readonly query = signal('');
   readonly products = signal<Product[]>([]);
   readonly searching = signal(false);
+  readonly searchFailed = signal(false);
   readonly suggestOpen = signal(false);
   readonly activeSuggestion = signal(-1);
   readonly suggestionRows = computed<Suggestion[]>(() => {
@@ -96,7 +97,7 @@ export class Shopping implements OnDestroy {
       .map((name): Suggestion => ({ kind: 'own', name }));
     return [...own, ...this.products().map((product): Suggestion => ({ kind: 'product', product }))];
   });
-  readonly showSuggestions = computed(() => this.suggestOpen() && (this.suggestionRows().length > 0 || this.searching()));
+  readonly showSuggestions = computed(() => this.suggestOpen() && (this.suggestionRows().length > 0 || this.searching() || this.searchFailed()));
 
   // Form fields for "Neue Liste" and the list settings
   listName = '';
@@ -279,6 +280,7 @@ export class Shopping implements OnDestroy {
     this.activeSuggestion.set(-1);
     this.stopSearch();
     this.products.set([]);
+    this.searchFailed.set(false);
     if (value.trim().length < MIN_SEARCH_LENGTH) return;
     this.searching.set(true);
     this.searchTimer = setTimeout(() => this.runSearch(value), SEARCH_DELAY_MS);
@@ -292,6 +294,7 @@ export class Shopping implements OnDestroy {
       if (!abort.signal.aborted) this.products.set(products);
     } catch {
       // Without the product database the own suggestions still work
+      if (!abort.signal.aborted) this.searchFailed.set(true);
     } finally {
       if (!abort.signal.aborted) this.searching.set(false);
     }
