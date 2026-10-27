@@ -1,0 +1,8 @@
+{
+  "headers": [
+    {
+      "source": "/(ngsw-worker.js|ngsw.json|safety-worker.js|worker-basic.min.js|index.html|manifest.webmanifest)",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+    }
+  ]
+}
