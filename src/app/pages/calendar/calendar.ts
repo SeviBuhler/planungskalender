@@ -21,6 +21,7 @@ import { Household, HouseholdStore } from '../../features/households/household-s
 import { ConfirmService } from '../../components/confirm/confirm';
 import { Select, SelectOption } from '../../components/select/select';
 import { SubscribeDialog } from './subscribe-dialog';
+import { ImportDialog } from './import-dialog';
 import { PageHeader } from '../../components/page-header/page-header';
 
 const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
@@ -71,7 +72,7 @@ function errorMessage(error: unknown): string {
 
 @Component({
   selector: 'app-calendar',
-  imports: [PageHeader, FormsModule, Select, SubscribeDialog],
+  imports: [PageHeader, FormsModule, Select, SubscribeDialog, ImportDialog],
   templateUrl: './calendar.html',
   styleUrl: './calendar.css',
 })
@@ -112,6 +113,7 @@ export class Calendar {
   readonly fadeClass = signal('');
   readonly form = signal<EventForm | null>(null);
   readonly subscribeOpen = signal(false);
+  readonly importOpen = signal(false);
 
   readonly title = computed(() => {
     const date = this.date();
@@ -188,6 +190,11 @@ export class Calendar {
 
   reload() {
     return this.loadEvents(this.date(), this.view());
+  }
+
+  closeImport(imported: boolean) {
+    this.importOpen.set(false);
+    if (imported) this.reload();
   }
 
   eventsFor(day: Date): CalendarEvent[] {
