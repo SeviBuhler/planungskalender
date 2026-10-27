@@ -182,28 +182,33 @@
             }
             <button class="shrink-0 px-2 py-1 rounded text-gray-500 hover:bg-red-100 hover:text-red-700" (click)="removeItem(item)" [attr.aria-label]="item.name + ' entfernen'">✕</button>
             @if (priceOpenId() === item.id && !item.checked) {
-                <div animate.enter="anim-drop-in" class="basis-full mt-1 mb-1 ml-8 rounded-lg bg-white p-2 text-sm">
-                    <ul class="flex flex-col gap-1">
-                        @for (r of priceState(item)?.results ?? []; track r.chain) {
-                            <li class="flex items-center gap-2">
-                                <span class="w-14 shrink-0 font-semibold text-xs">{{ chainLabel(r.chain) }}</span>
-                                @if (r.products[0]; as p) {
-                                    @if (p.url) {
-                                        <a class="flex-1 min-w-0 truncate underline decoration-gray-300" [href]="p.url" target="_blank" rel="noopener noreferrer">{{ p.name }}@if (p.size) { · {{ p.size }}}</a>
+                <!-- Indented with padding, not margin: basis-full plus a margin is wider than the screen -->
+                <div animate.enter="anim-drop-in" class="basis-full min-w-0 pl-8 mt-1 mb-1">
+                    <div class="rounded-lg bg-white p-2 text-sm">
+                        <ul class="flex flex-col gap-1.5">
+                            @for (r of priceState(item)?.results ?? []; track r.chain) {
+                                <li class="flex items-start gap-2">
+                                    <span class="w-14 shrink-0 pt-0.5 font-semibold text-xs">{{ chainLabel(r.chain) }}</span>
+                                    @if (r.products[0]; as p) {
+                                        @if (p.url) {
+                                            <a class="flex-1 min-w-0 break-words leading-snug underline decoration-gray-300" [href]="p.url" target="_blank" rel="noopener noreferrer">{{ p.name }}@if (p.size) { · {{ p.size }}}</a>
+                                        } @else {
+                                            <span class="flex-1 min-w-0 break-words leading-snug">{{ p.name }}@if (p.size) { · {{ p.size }}}</span>
+                                        }
+                                        <span class="shrink-0 flex flex-col items-end">
+                                            <span class="font-semibold">{{ formatPrice(p.price) }}</span>
+                                            @if (p.promotion) {
+                                                <span class="px-1 rounded bg-red-600 text-white text-xs">{{ p.promotion }}</span>
+                                            }
+                                        </span>
                                     } @else {
-                                        <span class="flex-1 min-w-0 truncate">{{ p.name }}@if (p.size) { · {{ p.size }}}</span>
+                                        <span class="flex-1 min-w-0 text-gray-500">{{ r.error ?? 'nichts gefunden' }}</span>
                                     }
-                                    @if (p.promotion) {
-                                        <span class="shrink-0 px-1 rounded bg-red-600 text-white text-xs">{{ p.promotion }}</span>
-                                    }
-                                    <span class="shrink-0 font-semibold">{{ formatPrice(p.price) }}</span>
-                                } @else {
-                                    <span class="flex-1 text-gray-500">{{ r.error ?? 'nichts gefunden' }}</span>
-                                }
-                            </li>
-                        }
-                    </ul>
-                    <p class="mt-1 text-xs text-gray-500">Bester Treffer pro Laden, Angaben ohne Gewähr.</p>
+                                </li>
+                            }
+                        </ul>
+                        <p class="mt-1 text-xs text-gray-500">Bester Treffer pro Laden, Angaben ohne Gewähr.</p>
+                    </div>
                 </div>
             }
         </li>
