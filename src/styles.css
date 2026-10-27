@@ -67,5 +67,5 @@ html.dark { background-color: var(--color-gray-800); color-scheme: dark; }
 /* The fade still reaches about 1.5rem into the page, so the installed app on phones starts its
    content below it. Content scrolled up still passes under it, as in other iPhone apps. */
 @media (display-mode: standalone) and (max-width: 47.99rem) {
-  :has(> app-page-header) { padding-top: 2.25rem; }
+  :has(> app-page-header) { padding-top: 1.5rem; }
 }
