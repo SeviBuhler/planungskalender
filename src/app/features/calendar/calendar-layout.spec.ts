@@ -1,4 +1,4 @@
-import { CalendarEvent, buildMonthGrid, eventsOnDay, layoutDay, shiftDate, visibleRange } from './calendar-layout';
+import { CalendarEvent, buildMonthGrid, buildWeek, eventsOnDay, isoWeek, layoutDay, shiftDate, visibleRange } from './calendar-layout';
 
 function event(id: string, start: Date, end: Date, allDay = false): CalendarEvent {
   return { id, title: id, description: null, start, end, allDay, ownerId: 'a', householdId: null, category: null, seriesId: null, recurrence: null, recurrenceUntil: null };
@@ -18,12 +18,42 @@ describe('buildMonthGrid', () => {
   });
 });
 
+describe('buildWeek', () => {
+  it('runs from Monday to Sunday of the given date', () => {
+    const days = buildWeek(new Date(2026, 9, 29), 7, new Date(2026, 9, 27));
+    expect(days.map((d) => d.date)).toEqual(Array.from({ length: 7 }, (_, i) => new Date(2026, 9, 26 + i)));
+    expect(days.filter((d) => d.isToday).map((d) => d.date.getDate())).toEqual([27]);
+  });
+
+  it('starts at the date itself for a shorter week', () => {
+    expect(buildWeek(new Date(2026, 9, 29), 3).map((d) => d.date)).toEqual([new Date(2026, 9, 29), new Date(2026, 9, 30), new Date(2026, 9, 31)]);
+  });
+
+  it('starts on the previous Monday for a Sunday', () => {
+    expect(buildWeek(new Date(2026, 10, 1))[0].date).toEqual(new Date(2026, 9, 26));
+  });
+});
+
+describe('isoWeek', () => {
+  it('numbers weeks like ISO 8601', () => {
+    expect(isoWeek(new Date(2026, 9, 27))).toBe(44);
+    expect(isoWeek(new Date(2027, 0, 1))).toBe(53); // Friday, belongs to the last week of 2026
+    expect(isoWeek(new Date(2027, 0, 4))).toBe(1);
+    expect(isoWeek(new Date(2025, 11, 29))).toBe(1); // Monday, first week of 2026
+  });
+});
+
 describe('shiftDate', () => {
   it('moves by day, month and year', () => {
     const date = new Date(2026, 9, 26);
     expect(shiftDate(date, 'day', 1)).toEqual(new Date(2026, 9, 27));
     expect(shiftDate(date, 'month', -1)).toEqual(new Date(2026, 8, 26));
     expect(shiftDate(date, 'year', 1)).toEqual(new Date(2027, 9, 26));
+  });
+
+  it('moves by a week', () => {
+    expect(shiftDate(new Date(2026, 9, 29), 'week', 1)).toEqual(new Date(2026, 10, 5));
+    expect(shiftDate(new Date(2026, 9, 29), 'week', -1, 3)).toEqual(new Date(2026, 9, 26));
   });
 
   it('keeps the end of the month when the next month is shorter', () => {
@@ -36,6 +66,13 @@ describe('visibleRange', () => {
     const { from, to } = visibleRange(new Date(2026, 9, 15), 'month');
     expect(from).toEqual(new Date(2026, 8, 28));
     expect(to).toEqual(new Date(2026, 10, 2));
+  });
+
+  it('covers Monday to Sunday for a week', () => {
+    const { from, to } = visibleRange(new Date(2026, 9, 29), 'week');
+    expect(from).toEqual(new Date(2026, 9, 26));
+    expect(to).toEqual(new Date(2026, 10, 2));
+    expect(visibleRange(new Date(2026, 9, 29), 'week', 3)).toEqual({ from: new Date(2026, 9, 29), to: new Date(2026, 10, 1) });
   });
 });
 

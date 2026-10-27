@@ -91,6 +91,45 @@ describe('Calendar', () => {
     expect(component.date()).toEqual(new Date(2027, 2, 13));
   });
 
+  it('shows a week from Monday to Sunday and moves by weeks', () => {
+    component.setView('week');
+    fixture.detectChanges();
+    expect(component.title()).toBe('26. Okt. – 1. Nov. 2026 · KW 44');
+    const week = component.pages().find((p) => p.offset === 0)!.weekDays;
+    expect(week.map((d) => d.date.getDate())).toEqual([26, 27, 28, 29, 30, 31, 1]);
+    expect(week[2].positioned.map((p) => p.event.title)).toEqual(['Zahnarzt']);
+    expect(fixture.nativeElement.textContent).toContain('Zahnarzt');
+
+    component.next();
+    expect(component.date()).toEqual(new Date(2026, 10, 2));
+    component.openDay(new Date(2026, 10, 4));
+    expect(component.view()).toBe('day');
+  });
+
+  it('shows three days from the shown date on small screens', () => {
+    component.compact.set(true);
+    component.setView('week');
+    expect(component.title()).toBe('26. – 28. Okt. 2026 · KW 44');
+    expect(component.pages().find((p) => p.offset === 0)!.weekDays.length).toBe(3);
+    component.next();
+    expect(component.date()).toEqual(new Date(2026, 9, 29));
+    expect(component.title()).toBe('29. – 31. Okt. 2026 · KW 44');
+  });
+
+  it('shows the week strip in the day view and switches days with it', () => {
+    component.openDay(new Date(2026, 9, 27));
+    fixture.detectChanges();
+    expect(component.title()).toBe('26. Okt. – 1. Nov. 2026 · KW 44');
+    const strip = component.weekStrip();
+    expect(strip.map((d) => d.weekday)).toEqual(['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']);
+    expect(strip[1].selected).toBe(true);
+    expect(strip[2].dots.length).toBe(1);
+
+    component.selectDay(new Date(2026, 9, 28));
+    expect(component.date()).toEqual(new Date(2026, 9, 28));
+    expect(component.dayHeading()).toBe('Mittwoch, 28. Oktober 2026');
+  });
+
   it('changes the month with a horizontal swipe or mouse drag', () => {
     component.onPointerDown(pointer('pointerdown', 300));
     component.onPointerUp(pointer('pointerup', 100));
@@ -136,11 +175,16 @@ describe('Calendar', () => {
     expect(component.date().getMonth()).toBe(10);
   });
 
-  it('loads the events of the neighbouring pages too', async () => {
+  it('loads the events of the neighbouring pages and the whole week of the day too', async () => {
     component.openDay(new Date(2026, 9, 28));
     fixture.detectChanges();
     await fixture.whenStable();
-    expect(store.ranges.at(-1)).toEqual([new Date(2026, 9, 27), new Date(2026, 9, 30)]);
+    expect(store.ranges.at(-1)).toEqual([new Date(2026, 9, 26), new Date(2026, 10, 2)]);
+
+    component.openDay(new Date(2026, 10, 1)); // Sunday: the next day lies in the following week
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(store.ranges.at(-1)).toEqual([new Date(2026, 9, 26), new Date(2026, 10, 9)]);
   });
 
   it('creates a timed event in a household with the calendar module', async () => {

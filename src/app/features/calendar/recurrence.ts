@@ -1,15 +1,16 @@
 // Categories and repeating events. A series is stored as one row per occurrence.
 import { Category, Recurrence, startOfDay } from './calendar-layout';
 
-export const CATEGORIES: { id: Category; label: string; tile: string }[] = [
-  { id: 'work', label: 'Arbeit', tile: 'bg-blue-200 text-blue-950' },
-  { id: 'private', label: 'Privat', tile: 'bg-emerald-200 text-emerald-950' },
-  { id: 'family', label: 'Familie', tile: 'bg-amber-200 text-amber-950' },
-  { id: 'health', label: 'Gesundheit', tile: 'bg-rose-200 text-rose-950' },
-  { id: 'leisure', label: 'Freizeit', tile: 'bg-violet-200 text-violet-950' },
-  { id: 'other', label: 'Sonstiges', tile: 'bg-gray-300 text-gray-900' },
+export const CATEGORIES: { id: Category; label: string; tile: string; dot: string }[] = [
+  { id: 'work', label: 'Arbeit', tile: 'bg-blue-200 text-blue-950', dot: 'bg-blue-500' },
+  { id: 'private', label: 'Privat', tile: 'bg-emerald-200 text-emerald-950', dot: 'bg-emerald-500' },
+  { id: 'family', label: 'Familie', tile: 'bg-amber-200 text-amber-950', dot: 'bg-amber-500' },
+  { id: 'health', label: 'Gesundheit', tile: 'bg-rose-200 text-rose-950', dot: 'bg-rose-500' },
+  { id: 'leisure', label: 'Freizeit', tile: 'bg-violet-200 text-violet-950', dot: 'bg-violet-500' },
+  { id: 'other', label: 'Sonstiges', tile: 'bg-gray-300 text-gray-900', dot: 'bg-gray-500' },
 ];
 export const DEFAULT_TILE = 'bg-indigo-100 text-indigo-900';
+export const DEFAULT_DOT = 'bg-indigo-400';
 
 export const RECURRENCES: { id: Recurrence; label: string; defaultMonths: number }[] = [
   { id: 'daily', label: 'Täglich', defaultMonths: 3 },
