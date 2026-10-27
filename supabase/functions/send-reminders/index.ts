@@ -7,11 +7,13 @@
 // "Verify JWT" muss aus sein, weil der Cron-Job kein Login mitschickt. Ein fremder Aufruf von
 // "send" kann nur Erinnerungen verschicken, die ohnehin gerade fällig sind.
 //
+// Web Push (RFC 8291 Verschlüsselung, RFC 8292 VAPID) ist hier mit Web Crypto umgesetzt, ohne
+// npm-Bibliothek: npm:web-push startete in Supabase nicht (504).
+//
 // Secrets: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY (npx web-push generate-vapid-keys),
 // optional VAPID_SUBJECT (mailto:…) und FEED_TIMEZONE (Standard Europe/Zurich).
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import webpush from 'npm:web-push@3.6.7';
 
 const TIME_ZONE = Deno.env.get('FEED_TIMEZONE') ?? 'Europe/Zurich';
 const PUBLIC_KEY = Deno.env.get('VAPID_PUBLIC_KEY') ?? '';
@@ -65,9 +67,101 @@ export function whenText(startsAt: string, allDay: boolean, now = new Date()): s
   return `${label}, ${time}`;
 }
 
+// ---- Web Push ----
+
+const encoder = new TextEncoder();
+type Bytes = Uint8Array<ArrayBuffer>;
+
+function fromB64url(text: string): Bytes {
+  const b64 = text.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(text.length / 4) * 4, '=');
+  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+}
+
+function toB64url(bytes: Bytes): string {
+  let text = '';
+  for (const b of bytes) text += String.fromCharCode(b);
+  return btoa(text).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function concat(...parts: Bytes[]): Bytes {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let offset = 0;
+  for (const p of parts) {
+    out.set(p, offset);
+    offset += p.length;
+  }
+  return out;
+}
+
+async function hkdf(salt: Bytes, ikm: Bytes, info: Bytes, length: number): Promise<Bytes> {
+  const key = await crypto.subtle.importKey('raw', ikm, 'HKDF', false, ['deriveBits']);
+  return new Uint8Array(await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt, info }, key, length * 8));
+}
+
+// Payload encryption with "aes128gcm" (RFC 8291 / RFC 8188), one record
+export async function encryptPayload(payload: string, p256dh: string, authSecret: string, salt = crypto.getRandomValues(new Uint8Array(16))): Promise<Bytes> {
+  const uaPublic = fromB64url(p256dh);
+  const auth = fromB64url(authSecret);
+  const local = (await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits'])) as CryptoKeyPair;
+  const asPublic = new Uint8Array(await crypto.subtle.exportKey('raw', local.publicKey));
+  const uaKey = await crypto.subtle.importKey('raw', uaPublic, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+  const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: uaKey }, local.privateKey, 256));
+
+  const ikm = await hkdf(auth, shared, concat(encoder.encode('WebPush: info\0'), uaPublic, asPublic), 32);
+  const cek = await hkdf(salt, ikm, encoder.encode('Content-Encoding: aes128gcm\0'), 16);
+  const nonce = await hkdf(salt, ikm, encoder.encode('Content-Encoding: nonce\0'), 12);
+
+  const key = await crypto.subtle.importKey('raw', cek, 'AES-GCM', false, ['encrypt']);
+  const plain = concat(encoder.encode(payload), new Uint8Array([2])); // 2 = last record
+  const cipher = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, key, plain));
+
+  const header = new Uint8Array(21);
+  header.set(salt, 0);
+  new DataView(header.buffer).setUint32(16, 4096);
+  header[20] = asPublic.length;
+  return concat(header, asPublic, cipher);
+}
+
+// VAPID: a JWT signed with the server key so the push service knows who sends (RFC 8292)
+async function vapidHeader(endpoint: string): Promise<string> {
+  const pub = fromB64url(PUBLIC_KEY);
+  const key = await crypto.subtle.importKey(
+    'jwk',
+    { kty: 'EC', crv: 'P-256', d: PRIVATE_KEY, x: toB64url(pub.slice(1, 33)), y: toB64url(pub.slice(33, 65)), ext: true },
+    { name: 'ECDSA', namedCurve: 'P-256' },
+    false,
+    ['sign']
+  );
+  const part = (value: object) => toB64url(encoder.encode(JSON.stringify(value)));
+  const unsigned = `${part({ typ: 'JWT', alg: 'ES256' })}.${part({
+    aud: new URL(endpoint).origin,
+    exp: Math.floor(Date.now() / 1000) + 12 * 3600,
+    sub: Deno.env.get('VAPID_SUBJECT') ?? 'mailto:fortwo@example.com',
+  })}`;
+  const signature = new Uint8Array(await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, encoder.encode(unsigned)));
+  return `vapid t=${unsigned}.${toB64url(signature)}, k=${PUBLIC_KEY}`;
+}
+
+// Returns the push service's status code (201 = accepted, 404/410 = device gone)
+async function sendPush(s: Subscription, payload: string): Promise<number> {
+  const response = await fetch(s.endpoint, {
+    method: 'POST',
+    headers: {
+      Authorization: await vapidHeader(s.endpoint),
+      'Content-Encoding': 'aes128gcm',
+      'Content-Type': 'application/octet-stream',
+      TTL: '3600',
+      Urgency: 'high',
+    },
+    body: await encryptPayload(payload, s.p256dh, s.auth),
+    signal: AbortSignal.timeout(10000),
+  });
+  await response.body?.cancel();
+  return response.status;
+}
+
 async function send(): Promise<Response> {
   if (!PUBLIC_KEY || !PRIVATE_KEY) return reply(500, { error: 'VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY fehlen' });
-  webpush.setVapidDetails(Deno.env.get('VAPID_SUBJECT') ?? 'mailto:fortwo@example.com', PUBLIC_KEY, PRIVATE_KEY);
 
   const { data: due, error } = await admin.rpc('due_reminders');
   if (error) return reply(500, { error: error.message });
@@ -111,12 +205,12 @@ async function send(): Promise<Response> {
             },
           };
           try {
-            await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify(payload), { TTL: 3600 });
-            sent++;
+            const status = await sendPush(s, JSON.stringify(payload));
+            if (status >= 200 && status < 300) sent++;
+            else if (status === 404 || status === 410) gone.add(s.id); // the device unsubscribed
+            else console.error('Push abgelehnt', status, new URL(s.endpoint).host);
           } catch (e) {
-            const status = (e as { statusCode?: number }).statusCode;
-            if (status === 404 || status === 410) gone.add(s.id); // the device unsubscribed
-            else console.error('Push fehlgeschlagen', status, (e as Error).message);
+            console.error('Push fehlgeschlagen', new URL(s.endpoint).host, (e as Error).message);
           }
         })
     )
