@@ -1,4 +1,4 @@
-// Preise und Aktionen von Migros, Aldi, Denner und Lidl für die Einkaufsliste von ForTwo.
+// Preise und Aktionen von Migros, Coop, Aldi, Denner und Lidl für die Einkaufsliste von ForTwo.
 // Die Läden haben keine offiziellen Schnittstellen; die Abfragen in chains.ts nutzen die
 // öffentlichen Endpunkte ihrer Apps und Websites und können jederzeit ausfallen.
 // Angaben ohne Gewähr.
