@@ -24,6 +24,7 @@ import { Household, HouseholdStore } from '../../features/households/household-s
 import { ConfirmService } from '../../components/confirm/confirm';
 import { Select, SelectOption } from '../../components/select/select';
 import { SubscribeDialog } from './subscribe-dialog';
+import { ReminderDialog } from './reminder-dialog';
 import { ImportDialog } from './import-dialog';
 import { GLASS, PHONE_MENU_ITEM, PageHeader } from '../../components/page-header/page-header';
 import { ViewPicker } from '../../components/view-picker/view-picker';
@@ -106,7 +107,7 @@ function errorMessage(error: unknown): string {
 
 @Component({
   selector: 'app-calendar',
-  imports: [PageHeader, ViewPicker, FormsModule, Select, SubscribeDialog, ImportDialog, ScrollToHour],
+  imports: [PageHeader, ViewPicker, FormsModule, Select, SubscribeDialog, ReminderDialog, ImportDialog, ScrollToHour],
   templateUrl: './calendar.html',
   styleUrl: './calendar.css',
 })
@@ -157,6 +158,7 @@ export class Calendar {
   readonly fadeClass = signal('');
   readonly form = signal<EventForm | null>(null);
   readonly subscribeOpen = signal(false);
+  readonly remindersOpen = signal(false);
   readonly importOpen = signal(false);
 
   readonly title = computed(() => {
