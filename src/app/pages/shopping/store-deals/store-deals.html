@@ -9,16 +9,21 @@
 
     <fieldset class="flex flex-col gap-2 text-sm">
         <legend class="mb-1">Wo kaufst du ein?</legend>
-        <div class="flex flex-wrap gap-2">
+        <details class="rounded-lg border border-gray-300 bg-white">
+            <summary class="cursor-pointer px-3 py-2">
+                Läden auswählen ({{ stores.chains().length }} ausgewählt)
+            </summary>
+            <div class="flex flex-col gap-2 border-t border-gray-200 p-3">
             @for (c of allChains; track c.id) {
-                <button type="button" class="px-3 py-1.5 rounded-full border text-left" [attr.aria-pressed]="chosen(c.id)"
-                        [class]="chosen(c.id) ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-300 hover:bg-fuchsia-100'"
-                        (click)="toggleChain(c.id)">
-                    {{ c.label }} <span class="text-xs opacity-75">· {{ c.note }}</span>
-                </button>
+                <label class="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-fuchsia-100">
+                    <input type="checkbox" class="accent-indigo-600" [checked]="chosen(c.id)"
+                           (change)="toggleChain(c.id)" />
+                    <span>{{ c.label }} <span class="text-xs opacity-75">· {{ c.note }}</span></span>
+                </label>
             }
-        </div>
-        <p class="text-xs text-gray-600">Farmy und weitere Läden folgen.</p>
+            </div>
+        </details>
+        <p class="text-xs text-gray-600">Weitere Läden folgen.</p>
     </fieldset>
 
     @if (errorText()) {
