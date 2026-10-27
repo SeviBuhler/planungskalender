@@ -1,4 +1,4 @@
-<div class="flex flex-col min-h-screen bg-gray-300 dark:bg-gray-800 p-3 md:p-6 text-sky-950 dark:text-sky-100">
+<div class="flex flex-col min-h-screen bg-gray-300 dark:bg-gray-800 p-3 md:p-6 text-sky-950 dark:text-sky-100" [class.fill-screen]="fillsScreen()">
     <app-page-header title="Kalender" [mobileTitle]="mobileTitle()" addLabel="Neuer Termin" (add)="newEvent()">
         <app-view-picker headerActions [view]="view()" (viewChange)="setView($event)" />
         <ng-container menuItems>
@@ -81,19 +81,19 @@
         </div>
     }
 
-    <div class="swipe-area relative flex-1 select-none md:px-14"
+    <div class="swipe-area relative flex-1 select-none md:px-14" [class.max-md:min-h-0]="fillsScreen()" [class.max-md:flex]="fillsScreen()" [class.max-md:flex-col]="fillsScreen()"
          (pointerdown)="onPointerDown($event)" (pointermove)="onPointerMove($event)" (pointerup)="onPointerUp($event)" (pointercancel)="onPointerCancel()">
         <button class="hidden md:flex absolute left-0 top-0 bottom-0 w-12 items-center justify-center rounded-lg bg-indigo-600/10 hover:bg-indigo-600/30 text-3xl text-indigo-800 dark:text-sky-100"
                 (click)="previous()" aria-label="Zurück">‹</button>
         <button class="hidden md:flex absolute right-0 top-0 bottom-0 w-12 items-center justify-center rounded-lg bg-indigo-600/10 hover:bg-indigo-600/30 text-3xl text-indigo-800 dark:text-sky-100"
                 (click)="next()" aria-label="Weiter">›</button>
 
-        <div class="overflow-hidden">
+        <div class="overflow-hidden" [class.max-md:flex-1]="fillsScreen()" [class.max-md:min-h-0]="fillsScreen()">
             <!-- Carousel: previous, current and next page side by side; the track follows the finger -->
-            <div class="flex items-start" [style.transform]="trackTransform()"
+            <div class="flex items-start" [class.max-md:h-full]="fillsScreen()" [style.transform]="trackTransform()"
                  [class.transition-transform]="trackAnimated()" [class.duration-300]="trackAnimated()" [class.ease-out]="trackAnimated()">
                 @for (page of pages(); track page.key) {
-                    <div class="w-full shrink-0 px-1.5" [class]="page.offset === 0 ? fadeClass() : ''" [attr.aria-hidden]="page.offset !== 0 ? 'true' : null"
+                    <div class="w-full shrink-0 px-1.5" [class]="(page.offset === 0 ? fadeClass() : '') + (fillsScreen() ? ' max-md:flex max-md:h-full max-md:flex-col' : '')" [attr.aria-hidden]="page.offset !== 0 ? 'true' : null"
                          [attr.inert]="page.offset !== 0 ? '' : null">
                         @switch (view()) {
                             @case ('year') {
@@ -148,7 +148,7 @@
 
                             @case ('week') {
                                 <!-- Time grid like the day view: Monday to Sunday, three days on phones -->
-                                <div class="rounded-lg bg-gray-100 text-indigo-950 shadow max-h-[75vh] overflow-y-auto" [appScrollToHour]="7">
+                                <div class="rounded-lg bg-gray-100 text-indigo-950 shadow max-md:min-h-0 max-md:flex-1 md:max-h-[75vh] overflow-y-auto overscroll-contain" [appScrollToHour]="7">
                                     <div class="sticky top-0 z-10 bg-gray-100 border-b border-gray-300">
                                         <div class="grid" [style.grid-template-columns]="'3rem repeat(' + page.weekDays.length + ', minmax(0, 1fr))'">
                                             <span></span>
@@ -200,6 +200,7 @@
                                             </div>
                                         }
                                     </div>
+                                    <div class="bar-spacer" aria-hidden="true"></div>
                                 </div>
                             }
 
@@ -214,7 +215,7 @@
                                         }
                                     </div>
                                 }
-                                <div class="rounded-lg bg-gray-100 text-indigo-950 shadow max-h-[70vh] overflow-y-auto" [appScrollToHour]="7">
+                                <div class="rounded-lg bg-gray-100 text-indigo-950 shadow max-md:min-h-0 max-md:flex-1 md:max-h-[70vh] overflow-y-auto overscroll-contain" [appScrollToHour]="7">
                                     <div class="relative flex" style="height: 1152px">
                                         <div class="w-12 shrink-0">
                                             @for (hour of hours; track hour) {
@@ -240,6 +241,7 @@
                                             }
                                         </div>
                                     </div>
+                                    <div class="bar-spacer" aria-hidden="true"></div>
                                 </div>
                             }
                         }

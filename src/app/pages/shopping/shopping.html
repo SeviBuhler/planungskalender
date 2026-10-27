@@ -1,4 +1,4 @@
-<div class="min-h-screen bg-gray-300 dark:bg-gray-800 p-3 md:p-6 text-sky-950 dark:text-sky-100">
+<div class="min-h-screen bg-gray-300 dark:bg-gray-800 p-3 md:p-6 text-sky-950 dark:text-sky-100" [class.fill-screen]="fillsScreen()">
     <app-page-header title="Einkaufsliste" [customTitle]="state() === 'ready'" [addLabel]="state() === 'ready' ? 'Neue Liste' : null" (add)="openNewList()">
         @if (state() === 'ready') {
             <app-title-picker mobileTitle ariaLabel="Einkaufsliste" [options]="listTitles()" [value]="list()?.id" (valueChange)="selectList($event)" />
@@ -61,7 +61,7 @@
         <ng-container [ngTemplateOutlet]="listPanel" />
     }
     @case ('ready') {
-    <div class="max-w-2xl mx-auto">
+    <div class="w-full max-w-2xl mx-auto" [class.max-md:flex]="fillsScreen()" [class.max-md:min-h-0]="fillsScreen()" [class.max-md:flex-1]="fillsScreen()" [class.max-md:flex-col]="fillsScreen()">
         <!-- Phones: list picker and pencil in the header, + next to the bottom bar, deals as a tab -->
         <div class="max-md:hidden flex flex-wrap items-center gap-2 mb-2">
             <app-select class="flex-1 min-w-48" ariaLabel="Einkaufsliste" [options]="listOptions()" [value]="list()?.id" (valueChange)="selectList($event)" />
@@ -95,7 +95,8 @@
             <app-store-deals (add)="addFromDeal($event)" (close)="dealsOpen.set(false)" />
         }
 
-        <section class="rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-3 md:p-4" [class.max-md:hidden]="dealsOpen()">
+        <section class="rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-3 md:p-4" [class.max-md:hidden]="dealsOpen()"
+                 [class.max-md:flex]="fillsScreen()" [class.max-md:min-h-0]="fillsScreen()" [class.max-md:flex-1]="fillsScreen()" [class.max-md:flex-col]="fillsScreen()" [class.max-md:pb-0]="fillsScreen()">
             <form class="relative flex gap-2 mb-3" (ngSubmit)="addItem()">
                 <div class="flex-1 min-w-0" (focusout)="leaveSuggestions($event)">
                     <input class="w-full p-2 rounded bg-white" name="newName" [ngModel]="newName" (ngModelChange)="onNameInput($event)" (keydown)="onNameKeydown($event)" (focus)="suggestOpen.set(true)"
@@ -143,6 +144,8 @@
                 <p class="mb-3 p-2 rounded bg-red-200 text-red-900 text-sm">{{ errorText() }}</p>
             }
 
+            <!-- Phones: only the items scroll, the field to add one stays on top -->
+            <div class="max-md:min-h-0 max-md:flex-1 max-md:overflow-y-auto max-md:overscroll-contain">
             @if (openItems().length === 0) {
                 <p class="py-6 text-center text-sm text-gray-600">
                     {{ checkedItems().length > 0 ? 'Alles erledigt 🎉' : 'Die Liste ist leer.' }}
@@ -165,6 +168,10 @@
                     }
                 </ul>
             }
+            @if (fillsScreen()) {
+                <div class="bar-spacer" aria-hidden="true"></div>
+            }
+            </div>
         </section>
     </div>
     }

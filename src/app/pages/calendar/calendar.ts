@@ -189,6 +189,8 @@ export class Calendar {
     }
   });
 
+  // Phones: week and day keep the page still and scroll only the time grid
+  readonly fillsScreen = computed(() => this.view() === 'week' || this.view() === 'day');
   readonly glass = GLASS;
   readonly menuItem = PHONE_MENU_ITEM;
 
