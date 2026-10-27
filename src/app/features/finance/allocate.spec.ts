@@ -100,6 +100,12 @@ describe('carryOver', () => {
     expect(next.expenses).not.toBe(BUDGET.expenses);
   });
 
+  it('drops one-time expenses and keeps the recurring ones', () => {
+    const next = carryOver({ ...BUDGET, expenses: [...BUDGET.expenses, { name: 'Zahnarzt', amountPerUnit: 300, quantity: 1, oneTime: true }] });
+
+    expect(next.expenses.map((e) => e.name)).toEqual(['Miete', 'Einkauf']);
+  });
+
   it('rolls over the year', () => {
     expect(nextMonth('2026-12')).toBe('2027-01');
   });

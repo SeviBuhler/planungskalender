@@ -27,7 +27,7 @@ export function summaryTables(summary: Summary): Table[] {
       body: [
         ['Startguthaben', summary.startBalance],
         ['Einnahmen', summary.income],
-        ['Planbare Ausgaben', -summary.plannedTotal],
+        ['Ausgaben', -summary.plannedTotal],
         ['Schuldenzahlungen', -summary.debtTotal],
         ['Sparraten', -summary.savingsTotal],
       ],
