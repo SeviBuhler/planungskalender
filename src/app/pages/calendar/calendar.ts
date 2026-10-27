@@ -1,4 +1,4 @@
-import { Component, computed, effect, signal } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Supabase } from '../../services/supabase';
 import {
@@ -15,19 +15,23 @@ import {
   layoutDay,
   shiftDate,
   startOfDay,
+  startOfWeek,
   visibleRange,
 } from '../../features/calendar/calendar-layout';
 import { CalendarStore, EventInput } from '../../features/calendar/calendar-store';
-import { CATEGORIES, DEFAULT_TILE, MAX_OCCURRENCES, RECURRENCES, occurrences } from '../../features/calendar/recurrence';
+import { CATEGORIES, DEFAULT_DOT, DEFAULT_TILE, MAX_OCCURRENCES, RECURRENCES, occurrences } from '../../features/calendar/recurrence';
 import { Household, HouseholdStore } from '../../features/households/household-store';
 import { ConfirmService } from '../../components/confirm/confirm';
 import { Select, SelectOption } from '../../components/select/select';
 import { SubscribeDialog } from './subscribe-dialog';
 import { ImportDialog } from './import-dialog';
 import { PageHeader } from '../../components/page-header/page-header';
+import { ScrollToHour } from './scroll-to-hour';
 
 const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
-const WEEKDAY_NAMES = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+// Phones show three days in the week view, larger screens Monday to Sunday
+const COMPACT_QUERY = '(max-width: 767.98px)';
+const COMPACT_DAYS = 3;
 const SWIPE_MIN_PX = 60;
 const FLICK_MIN_PX = 20;
 const FLICK_MIN_SPEED = 0.4; // px per ms
@@ -67,15 +71,17 @@ function monthsOfYear(year: number) {
   }));
 }
 
-// "26. Okt. – 1. Nov. 2026 · KW 44"; the first year only shows when the week spans New Year
-function weekTitle(date: Date): string {
-  const days = buildWeek(date);
-  const first = days[0].date;
-  const last = days[6].date;
+// "26. Okt. – 1. Nov. 2026 · KW 44" or "26. – 28. Okt. 2026 · KW 44"; the first month and year
+// only show when they differ from the last ones
+function rangeTitle(first: Date, last: Date): string {
   const sameYear = first.getFullYear() === last.getFullYear();
-  const from = first.toLocaleDateString('de-CH', { day: 'numeric', month: 'short', year: sameYear ? undefined : 'numeric' });
+  const sameMonth = sameYear && first.getMonth() === last.getMonth();
+  const from = sameMonth
+    ? `${first.getDate()}.`
+    : first.toLocaleDateString('de-CH', { day: 'numeric', month: 'short', year: sameYear ? undefined : 'numeric' });
   const to = last.toLocaleDateString('de-CH', { day: 'numeric', month: 'short', year: 'numeric' });
-  return `${from} – ${to} · KW ${isoWeek(date)}`;
+  const weeks = isoWeek(first) === isoWeek(last) ? `${isoWeek(first)}` : `${isoWeek(first)}/${isoWeek(last)}`;
+  return `${from} – ${to} · KW ${weeks}`;
 }
 
 function errorMessage(error: unknown): string {
@@ -86,13 +92,12 @@ function errorMessage(error: unknown): string {
 
 @Component({
   selector: 'app-calendar',
-  imports: [PageHeader, FormsModule, Select, SubscribeDialog, ImportDialog],
+  imports: [PageHeader, FormsModule, Select, SubscribeDialog, ImportDialog, ScrollToHour],
   templateUrl: './calendar.html',
   styleUrl: './calendar.css',
 })
 export class Calendar {
   readonly weekdays = WEEKDAYS;
-  readonly weekdayNames = WEEKDAY_NAMES;
   readonly hours = Array.from({ length: 24 }, (_, i) => i);
   readonly maxTiles = MAX_TILES;
   readonly scopeOptions: SelectOption[] = [
@@ -110,6 +115,8 @@ export class Calendar {
 
   readonly view = signal<CalendarView>('month');
   readonly date = signal(startOfDay(new Date()));
+  readonly compact = signal(false); // small screen: the week view shows three days
+  readonly weekLength = computed(() => (this.compact() ? COMPACT_DAYS : 7));
   readonly events = signal<CalendarEvent[]>([]);
   readonly households = signal<Household[]>([]);
   readonly calendarHouseholds = computed(() => this.households().filter((h) => h.modules.includes('calendar')));
@@ -137,11 +144,28 @@ export class Calendar {
         return String(date.getFullYear());
       case 'month':
         return date.toLocaleDateString('de-CH', { month: 'long', year: 'numeric' });
-      case 'week':
-        return weekTitle(date);
+      case 'week': {
+        const days = buildWeek(date, this.weekLength());
+        return rangeTitle(days[0].date, days[days.length - 1].date);
+      }
       case 'day':
-        return date.toLocaleDateString('de-CH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        return rangeTitle(startOfWeek(date), addDays(startOfWeek(date), 6));
     }
+  });
+
+  readonly dayHeading = computed(() =>
+    this.date().toLocaleDateString('de-CH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+  );
+
+  // Day view: the week of the shown day with a dot per event
+  readonly weekStrip = computed(() => {
+    const events = this.visibleEvents();
+    return buildWeek(this.date()).map((day, i) => ({
+      ...day,
+      weekday: WEEKDAYS[i],
+      selected: isSameDay(day.date, this.date()),
+      dots: eventsOnDay(events, day.date).slice(0, 4).map((e) => this.dotClass(e)),
+    }));
   });
 
   readonly monthDays = computed(() => buildMonthGrid(this.date().getFullYear(), this.date().getMonth()));
@@ -153,14 +177,20 @@ export class Calendar {
   readonly pages = computed(() => {
     const view = this.view();
     const events = this.visibleEvents();
+    const weekLength = this.weekLength();
     return ([-1, 0, 1] as const).map((offset) => {
-      const date = offset === 0 ? this.date() : shiftDate(this.date(), view, offset);
+      const date = offset === 0 ? this.date() : shiftDate(this.date(), view, offset, weekLength);
       return {
         offset,
-        key: `${view}:${date.getTime()}`,
+        key: `${view}:${weekLength}:${date.getTime()}`,
         monthDays: view === 'month' ? buildMonthGrid(date.getFullYear(), date.getMonth()) : [],
         yearMonths: view === 'year' ? monthsOfYear(date.getFullYear()) : [],
-        weekDays: view === 'week' ? buildWeek(date).map((day) => ({ ...day, events: eventsOnDay(events, day.date) })) : [],
+        weekDays: view === 'week' ? buildWeek(date, weekLength).map((day) => ({
+          ...day,
+          weekday: WEEKDAYS[(day.date.getDay() + 6) % 7],
+          allDay: eventsOnDay(events, day.date).filter((e) => e.allDay),
+          positioned: layoutDay(events, day.date),
+        })) : [],
         allDay: view === 'day' ? eventsOnDay(events, date).filter((e) => e.allDay) : [],
         positioned: view === 'day' ? layoutDay(events, date) : [],
       };
@@ -187,17 +217,29 @@ export class Calendar {
       (households) => this.households.set(households),
       (error) => this.errorText.set(errorMessage(error))
     );
+    if (typeof matchMedia === 'function') {
+      const query = matchMedia(COMPACT_QUERY);
+      this.compact.set(query.matches);
+      const update = (e: MediaQueryListEvent) => this.compact.set(e.matches);
+      query.addEventListener('change', update);
+      inject(DestroyRef).onDestroy(() => query.removeEventListener('change', update));
+    }
     effect(() => {
-      this.loadEvents(this.date(), this.view());
+      this.loadEvents(this.date(), this.view(), this.weekLength());
     });
   }
 
-  private async loadEvents(date: Date, view: CalendarView) {
+  private async loadEvents(date: Date, view: CalendarView, weekLength = this.weekLength()) {
     if (view === 'year') return; // the year view only navigates
     const token = ++this.loadToken;
-    // Also load the neighbouring pages, they are visible while swiping
-    const from = visibleRange(shiftDate(date, view, -1), view).from;
-    const to = visibleRange(shiftDate(date, view, 1), view).to;
+    // Also load the neighbouring pages, they are visible while swiping; the day view
+    // also needs its whole week for the strip on top
+    let from = visibleRange(shiftDate(date, view, -1, weekLength), view, weekLength).from;
+    let to = visibleRange(shiftDate(date, view, 1, weekLength), view, weekLength).to;
+    if (view === 'day') {
+      from = startOfWeek(from);
+      to = addDays(startOfWeek(addDays(to, -1)), 7);
+    }
     try {
       const events = await this.store.listRange(from, to);
       if (token === this.loadToken) this.events.set(events);
@@ -225,6 +267,10 @@ export class Calendar {
 
   tileClass(event: CalendarEvent): string {
     return CATEGORIES.find((c) => c.id === event.category)?.tile ?? DEFAULT_TILE;
+  }
+
+  dotClass(event: CalendarEvent): string {
+    return CATEGORIES.find((c) => c.id === event.category)?.dot ?? DEFAULT_DOT;
   }
 
   // Recurrence can be set for new events, single events and "this and following"
@@ -267,7 +313,7 @@ export class Calendar {
     const dragged = this.dragX();
     this.fadeClass.set('');
     this.trackAnimated.set(false);
-    this.date.set(shiftDate(this.date(), this.view(), direction));
+    this.date.set(shiftDate(this.date(), this.view(), direction, this.weekLength()));
     this.trackShift.set(direction * 100);
     this.dragX.set(dragged);
     // Two frames: the jump without transition is painted before the glide starts
@@ -285,6 +331,13 @@ export class Calendar {
     this.fadeClass.set('anim-fade-in');
     this.date.set(new Date(this.date().getFullYear(), month, 1));
     this.view.set('month');
+  }
+
+  // Day view: a tap on the week strip shows that day
+  selectDay(day: Date) {
+    if (isSameDay(day, this.date())) return;
+    this.fadeClass.set('anim-fade-in');
+    this.date.set(startOfDay(day));
   }
 
   openDay(day: Date) {
@@ -379,13 +432,8 @@ export class Calendar {
     });
   }
 
-  newEventAt(hour: number) {
-    const day = this.date();
+  newEventAt(hour: number, day = this.date()) {
     this.newEvent(new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour));
-  }
-
-  newEventOn(day: Date) {
-    this.newEvent(new Date(day.getFullYear(), day.getMonth(), day.getDate(), 9));
   }
 
   editEvent(event: CalendarEvent, domEvent?: Event) {

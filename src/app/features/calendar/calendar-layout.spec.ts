@@ -20,9 +20,13 @@ describe('buildMonthGrid', () => {
 
 describe('buildWeek', () => {
   it('runs from Monday to Sunday of the given date', () => {
-    const days = buildWeek(new Date(2026, 9, 29), new Date(2026, 9, 27));
+    const days = buildWeek(new Date(2026, 9, 29), 7, new Date(2026, 9, 27));
     expect(days.map((d) => d.date)).toEqual(Array.from({ length: 7 }, (_, i) => new Date(2026, 9, 26 + i)));
     expect(days.filter((d) => d.isToday).map((d) => d.date.getDate())).toEqual([27]);
+  });
+
+  it('starts at the date itself for a shorter week', () => {
+    expect(buildWeek(new Date(2026, 9, 29), 3).map((d) => d.date)).toEqual([new Date(2026, 9, 29), new Date(2026, 9, 30), new Date(2026, 9, 31)]);
   });
 
   it('starts on the previous Monday for a Sunday', () => {
@@ -49,6 +53,7 @@ describe('shiftDate', () => {
 
   it('moves by a week', () => {
     expect(shiftDate(new Date(2026, 9, 29), 'week', 1)).toEqual(new Date(2026, 10, 5));
+    expect(shiftDate(new Date(2026, 9, 29), 'week', -1, 3)).toEqual(new Date(2026, 9, 26));
   });
 
   it('keeps the end of the month when the next month is shorter', () => {
@@ -67,6 +72,7 @@ describe('visibleRange', () => {
     const { from, to } = visibleRange(new Date(2026, 9, 29), 'week');
     expect(from).toEqual(new Date(2026, 9, 26));
     expect(to).toEqual(new Date(2026, 10, 2));
+    expect(visibleRange(new Date(2026, 9, 29), 'week', 3)).toEqual({ from: new Date(2026, 9, 29), to: new Date(2026, 10, 1) });
   });
 });
 

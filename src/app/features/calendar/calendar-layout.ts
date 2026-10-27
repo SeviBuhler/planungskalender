@@ -56,11 +56,11 @@ export function isoWeek(date: Date): number {
   return Math.round((thursday.getTime() - firstThursday.getTime()) / (7 * DAY_MS)) + 1;
 }
 
-// The seven days from Monday to Sunday of the week the date lies in
-export function buildWeek(date: Date, today: Date = new Date()): CalendarDay[] {
-  const monday = startOfWeek(date);
-  return Array.from({ length: 7 }, (_, i) => {
-    const day = addDays(monday, i);
+// The days the week view shows: Monday to Sunday, or on small screens a few days starting at the date
+export function buildWeek(date: Date, length = 7, today: Date = new Date()): CalendarDay[] {
+  const first = length === 7 ? startOfWeek(date) : startOfDay(date);
+  return Array.from({ length }, (_, i) => {
+    const day = addDays(first, i);
     return { date: day, inMonth: true, isToday: isSameDay(day, today) };
   });
 }
@@ -69,10 +69,11 @@ export function isSameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
-// Moves the shown date by one year, month, week or day; months keep the day where possible (31 Jan -> 28 Feb)
-export function shiftDate(date: Date, view: CalendarView, direction: 1 | -1): Date {
+// Moves the shown date by one year, month, week (of weekLength days) or day;
+// months keep the day where possible (31 Jan -> 28 Feb)
+export function shiftDate(date: Date, view: CalendarView, direction: 1 | -1, weekLength = 7): Date {
   if (view === 'day') return addDays(date, direction);
-  if (view === 'week') return addDays(date, 7 * direction);
+  if (view === 'week') return addDays(date, weekLength * direction);
   const months = view === 'year' ? 12 * direction : direction;
   const target = new Date(date.getFullYear(), date.getMonth() + months, 1);
   const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
@@ -80,9 +81,12 @@ export function shiftDate(date: Date, view: CalendarView, direction: 1 | -1): Da
 }
 
 // The time range a view shows, used to load its events
-export function visibleRange(date: Date, view: CalendarView): { from: Date; to: Date } {
+export function visibleRange(date: Date, view: CalendarView, weekLength = 7): { from: Date; to: Date } {
   if (view === 'day') return { from: startOfDay(date), to: addDays(startOfDay(date), 1) };
-  if (view === 'week') return { from: startOfWeek(date), to: addDays(startOfWeek(date), 7) };
+  if (view === 'week') {
+    const days = buildWeek(date, weekLength);
+    return { from: days[0].date, to: addDays(days[days.length - 1].date, 1) };
+  }
   if (view === 'year') return { from: new Date(date.getFullYear(), 0, 1), to: new Date(date.getFullYear() + 1, 0, 1) };
   const grid = buildMonthGrid(date.getFullYear(), date.getMonth());
   return { from: grid[0].date, to: addDays(grid[grid.length - 1].date, 1) };
