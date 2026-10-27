@@ -47,6 +47,7 @@ describe('Calendar', () => {
   let component: Calendar;
 
   beforeEach(async () => {
+    localStorage.clear();
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date(2026, 9, 26, 12));
     store = new FakeCalendarStore();
@@ -305,5 +306,12 @@ describe('Calendar', () => {
     component.setView('year');
     expect(component.showsToday()).toBe(true);
     expect(component.mobileTitle()).toBe('2026');
+  });
+
+  it('remembers the chosen view for the next visit', () => {
+    component.setView('week');
+    expect(localStorage.getItem('fortwo.calendarView')).toBe('week');
+    const again = TestBed.createComponent(Calendar).componentInstance;
+    expect(again.view()).toBe('week');
   });
 });
