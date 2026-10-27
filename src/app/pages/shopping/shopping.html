@@ -180,32 +180,36 @@
     <ng-template #row let-item>
         <li animate.enter="anim-fade-in" class="group flex flex-wrap items-center gap-x-3 py-1.5 border-b border-gray-200 last:border-b-0">
             <input type="checkbox" class="size-5 shrink-0 accent-indigo-600" [checked]="item.checked" (change)="toggle(item)" [attr.aria-label]="item.name + ' abhaken'" />
-            @if (item.imageUrl) {
-                <img class="size-10 shrink-0 rounded-lg object-contain bg-white" [class.opacity-50]="item.checked" [src]="item.imageUrl" alt="" loading="lazy" referrerpolicy="no-referrer" />
-            }
             @if (editingId() === item.id) {
                 <span class="flex-1 min-w-0 flex gap-2" (focusout)="leaveEdit($event, item)" (keydown.enter)="saveEdit(item)" (keydown.escape)="cancelEdit()">
                     <input #editInput class="flex-1 min-w-0 p-1 rounded bg-white" [(ngModel)]="editName" aria-label="Artikel" enterkeyhint="done" />
                     <input class="w-20 sm:w-28 p-1 rounded bg-white" [(ngModel)]="editQuantity" placeholder="Menge" aria-label="Menge" enterkeyhint="done" />
                 </span>
             } @else {
-                <button class="flex-1 min-w-0 flex items-baseline gap-2 text-left py-1" (click)="startEdit(item)" [attr.aria-label]="item.name + ' bearbeiten'">
-                    <span class="truncate" [class.line-through]="item.checked" [class.text-gray-500]="item.checked">{{ item.name }}</span>
-                    @if (item.quantity) {
-                        <span class="shrink-0 text-sm text-gray-600">{{ item.quantity }}</span>
-                    }
-                </button>
-            }
-            @if (!item.checked && storePrices.chains().length > 0 && editingId() !== item.id) {
-                @if (bestPrice(item); as best) {
-                    <button class="shrink-0 flex flex-col items-end px-2 py-0.5 rounded hover:bg-fuchsia-100 text-xs" [attr.aria-expanded]="priceOpenId() === item.id"
-                            (click)="togglePrices(item)" [attr.aria-label]="'Preise für ' + item.name">
-                        <span><span class="text-gray-600">ab</span> <span class="font-semibold text-sm">{{ formatPrice(best.price) }}</span></span>
-                        <span class="text-gray-600">{{ chainLabel(best.chain) }}@if (best.promotion) { <span class="px-1 rounded bg-red-600 text-white">Aktion</span>}</span>
+                <!-- Name on top, best price, promotion and store underneath -->
+                <div class="flex-1 min-w-0 flex flex-col py-1">
+                    <button class="flex items-baseline gap-2 text-left" (click)="startEdit(item)" [attr.aria-label]="item.name + ' bearbeiten'">
+                        <span class="break-words min-w-0" [class.line-through]="item.checked" [class.text-gray-500]="item.checked">{{ item.name }}</span>
+                        @if (item.quantity) {
+                            <span class="shrink-0 text-sm text-gray-600">{{ item.quantity }}</span>
+                        }
                     </button>
-                } @else if (priceState(item)?.status === 'loading') {
-                    <span class="shrink-0 px-2 text-xs text-gray-500" aria-label="Preise werden gesucht">…</span>
-                }
+                    @if (!item.checked && storePrices.chains().length > 0) {
+                        @if (bestPrice(item); as best) {
+                            <button class="self-start flex flex-wrap items-center gap-x-1.5 mt-0.5 rounded text-xs text-gray-600 hover:text-fuchsia-700" [attr.aria-expanded]="priceOpenId() === item.id"
+                                    (click)="togglePrices(item)" [attr.aria-label]="'Preise für ' + item.name">
+                                <span>ab <span class="font-semibold text-sm text-indigo-950">{{ formatPrice(best.price) }}</span></span>
+                                @if (best.promotion) {
+                                    <span class="px-1 rounded bg-red-600 text-white">Aktion</span>
+                                }
+                                <span>{{ chainLabel(best.chain) }}</span>
+                                <span aria-hidden="true">{{ priceOpenId() === item.id ? '▴' : '▾' }}</span>
+                            </button>
+                        } @else if (priceState(item)?.status === 'loading') {
+                            <span class="mt-0.5 text-xs text-gray-500" aria-label="Preise werden gesucht">Preise…</span>
+                        }
+                    }
+                </div>
             }
             <button appIconButton (click)="removeItem(item)" [attr.aria-label]="item.name + ' entfernen'"></button>
             @if (priceOpenId() === item.id && !item.checked) {
