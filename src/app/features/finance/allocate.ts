@@ -7,6 +7,7 @@ export interface PlannedExpense {
   amountPerUnit: number;
   quantity: number;
   note?: string;
+  oneTime?: boolean; // true: only in the month it was created in; otherwise it carries over
 }
 
 export type PriorityKind = 'debt' | 'saving';
@@ -112,14 +113,14 @@ export function nextMonth(month: string): string {
 }
 
 // Starts the following month from this one: end balance becomes the start balance,
-// paid-off debts and reached savings goals drop out, income has to be entered again.
+// one-time expenses, paid-off debts and reached savings goals drop out, income has to be entered again.
 export function carryOver(budget: MonthBudget): MonthBudget {
   const result = allocate(budget);
   return {
     month: nextMonth(budget.month),
     startBalance: result.endBalance,
     income: 0,
-    expenses: budget.expenses.map((e) => ({ ...e })),
+    expenses: budget.expenses.filter((e) => !e.oneTime).map((e) => ({ ...e })),
     priorities: budget.priorities
       .map((item, i) => ({ ...item, amount: result.priorities[i].remaining }))
       .filter((item) => item.amount > 0),

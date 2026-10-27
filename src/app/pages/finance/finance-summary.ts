@@ -47,7 +47,7 @@ const BUTTON = 'px-3 py-2 rounded-lg shadow bg-indigo-600 dark:bg-indigo-700 hov
         } @else {
           @let s = summary();
           @if (s.uncoveredMonths.length) {
-            <p class="mb-4 p-2 rounded bg-red-200 text-red-900 font-semibold">Planbare Ausgaben nicht gedeckt im {{ monthList(s.uncoveredMonths) }}</p>
+            <p class="mb-4 p-2 rounded bg-red-200 text-red-900 font-semibold">Ausgaben nicht gedeckt im {{ monthList(s.uncoveredMonths) }}</p>
           }
           <div class="grid gap-4 lg:grid-cols-3">
             <section [class]="card + ' h-fit'">
@@ -55,7 +55,7 @@ const BUTTON = 'px-3 py-2 rounded-lg shadow bg-indigo-600 dark:bg-indigo-700 hov
               <dl class="grid grid-cols-2 gap-y-2 text-sm">
                 <dt>Startguthaben</dt><dd class="text-right">{{ chf(s.startBalance) }}</dd>
                 <dt>Einnahmen</dt><dd class="text-right">+ {{ chf(s.income) }}</dd>
-                <dt>Planbare Ausgaben</dt><dd class="text-right">− {{ chf(s.plannedTotal) }}</dd>
+                <dt>Ausgaben</dt><dd class="text-right">− {{ chf(s.plannedTotal) }}</dd>
                 <dt>Schuldenzahlungen</dt><dd class="text-right">− {{ chf(s.debtTotal) }}</dd>
                 <dt>Sparraten</dt><dd class="text-right">− {{ chf(s.savingsTotal) }}</dd>
                 <dt class="font-semibold border-t border-gray-400 pt-2">Kontostand Ende</dt>
@@ -113,7 +113,7 @@ const BUTTON = 'px-3 py-2 rounded-lg shadow bg-indigo-600 dark:bg-indigo-700 hov
               </section>
 
               <section [class]="card">
-                <h3 class="font-semibold text-lg mb-3">Planbare Ausgaben</h3>
+                <h3 class="font-semibold text-lg mb-3">Ausgaben</h3>
                 <table class="w-full text-sm">
                   <tbody>
                     @for (e of s.expenses; track e.name) {

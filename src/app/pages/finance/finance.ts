@@ -105,6 +105,7 @@ export class Finance implements OnDestroy {
   });
   // Month/year summary instead of the month editor
   readonly showSummary = signal(false);
+  readonly priorityInfo = signal(false);
   // Phones: the month card scrolls by itself while plan and month stay in view
   readonly fillsScreen = computed(() => this.state() === 'ready' && this.panel() === 'none' && !this.showSummary());
 
@@ -338,8 +339,21 @@ export class Finance implements OnDestroy {
     });
   }
 
-  addExpense() {
-    this.edit((b) => ({ ...b, expenses: [...b.expenses, { name: '', amountPerUnit: 0, quantity: 1 }] }));
+  // One-time expenses stay in this month, the others are carried over into the next ones
+  addExpense(oneTime: boolean) {
+    const expense = oneTime ? { name: '', amountPerUnit: 0, quantity: 1, oneTime } : { name: '', amountPerUnit: 0, quantity: 1 };
+    this.edit((b) => ({ ...b, expenses: [...b.expenses, expense] }));
+  }
+
+  toggleOneTime(index: number) {
+    this.edit((b) => ({
+      ...b,
+      expenses: b.expenses.map((e, i) => {
+        if (i !== index) return e;
+        const { oneTime, ...rest } = e;
+        return oneTime ? rest : { ...rest, oneTime: true };
+      }),
+    }));
   }
 
   addPriority(kind: PriorityKind) {
