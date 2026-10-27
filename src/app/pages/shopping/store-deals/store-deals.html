@@ -46,23 +46,24 @@
             } @else {
                 <ul class="flex flex-col max-h-[28rem] overflow-y-auto">
                     @for (deal of deals(); track deal.chain + deal.id) {
-                        <li class="flex items-center gap-3 py-1.5 border-b border-gray-200 last:border-b-0">
+                        <li class="flex items-start gap-3 py-1.5 border-b border-gray-200 last:border-b-0">
                             @if (deal.imageUrl) {
                                 <img class="size-12 shrink-0 rounded-lg object-contain bg-white" [src]="deal.imageUrl" alt="" loading="lazy" referrerpolicy="no-referrer" />
                             } @else {
                                 <span class="size-12 shrink-0 rounded-lg bg-white" aria-hidden="true"></span>
                             }
+                            <!-- Price under the name, so the name gets the whole width -->
                             <span class="flex-1 min-w-0 flex flex-col">
-                                <span class="truncate">{{ deal.name }}</span>
-                                <span class="truncate text-xs text-gray-600">
-                                    {{ label(deal.chain) }}@if (deal.size) { · {{ deal.size }}}@if (until(deal.validUntil)) { · {{ until(deal.validUntil) }}}
+                                <span class="line-clamp-2 leading-snug" [title]="deal.name">{{ deal.name }}</span>
+                                <span class="flex flex-wrap items-center gap-x-1.5 mt-0.5">
+                                    <span class="font-semibold text-sm">{{ price(deal.price) }}</span>
+                                    @if (deal.promotion) {
+                                        <span class="px-1.5 rounded bg-red-600 text-white text-xs">{{ deal.promotion }}</span>
+                                    }
+                                    <span class="text-xs text-gray-600">
+                                        {{ label(deal.chain) }}@if (deal.size) { · {{ deal.size }}}@if (until(deal.validUntil)) { · {{ until(deal.validUntil) }}}
+                                    </span>
                                 </span>
-                            </span>
-                            <span class="shrink-0 flex flex-col items-end text-sm">
-                                <span class="font-semibold">{{ price(deal.price) }}</span>
-                                @if (deal.promotion) {
-                                    <span class="px-1.5 rounded bg-red-600 text-white text-xs">{{ deal.promotion }}</span>
-                                }
                             </span>
                             <button class="shrink-0 px-2 py-1 rounded-lg bg-indigo-600 hover:bg-fuchsia-500 text-white" (click)="add.emit(deal.name)" [attr.aria-label]="deal.name + ' auf die Liste'">+</button>
                         </li>
