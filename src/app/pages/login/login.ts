@@ -3,7 +3,7 @@ import { Supabase } from '../../services/supabase';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { RouterLink } from '@angular/router'
-import { DeviceUnlock } from '../../features/auth/device-unlock';
+import { DeviceUnlock, deviceName } from '../../features/auth/device-unlock';
 
 type Step = 'credentials' | 'second-factor' | 'code' | 'offer-passkey';
 
@@ -31,6 +31,8 @@ export class Login implements OnInit {
   passkeySupported = signal(false);
   // The user asked to set up the device unlock, so offer it after the code even after "later"
   private wantsSetup = false;
+  // "Forgot password": log in with a mail code only, then set a new password in the settings
+  private forgotPassword = false;
 
   constructor(public supabase: Supabase, private router: Router, private deviceUnlock: DeviceUnlock) {}
 
@@ -93,6 +95,15 @@ export class Login implements OnInit {
     await this.sendCode();
   }
 
+  async handleForgotPassword() {
+    if (!this.email.trim()) {
+      this.errorText.set('Gib zuerst deine E-Mail-Adresse ein.');
+      return;
+    }
+    this.forgotPassword = true;
+    await this.sendCode();
+  }
+
   async verifyCode() {
     await this.run(async () => {
       const result = await this.supabase.client.auth.verifyOtp({
@@ -101,6 +112,10 @@ export class Login implements OnInit {
         type: 'email'
       });
       if (result.error) throw new Error('Der Code stimmt nicht oder ist abgelaufen.');
+      if (this.forgotPassword) {
+        this.router.navigate(['/settings'], { queryParams: { password: 1 } });
+        return;
+      }
       if (this.passkeySupported() && !this.deviceUnlock.registeredHere && (this.wantsSetup || !passkeyDeclined())) {
         this.step.set('offer-passkey');
       } else {
@@ -128,6 +143,8 @@ export class Login implements OnInit {
   async backToStart() {
     await this.supabase.client.auth.signOut({ scope: 'local' });
     this.password = '';
+    this.forgotPassword = false;
+    this.wantsSetup = false;
     this.errorText.set('');
     this.step.set('credentials');
   }
@@ -158,14 +175,4 @@ function codeError(error: { message: string; status?: number; name: string }): s
   return /rate|seconds|security purposes/i.test(error.message)
     ? 'Zu viele Codes angefordert. Warte kurz und versuch es nochmals.'
     : `Der Code konnte nicht gesendet werden (${error.status ?? ''} ${error.name}: ${error.message}).`;
-}
-
-function deviceName(): string {
-  const ua = navigator.userAgent;
-  if (/iPhone/.test(ua)) return 'iPhone';
-  if (/iPad/.test(ua)) return 'iPad';
-  if (/Mac/.test(ua)) return 'Mac';
-  if (/Android/.test(ua)) return 'Android';
-  if (/Windows/.test(ua)) return 'Windows';
-  return 'Gerät';
 }

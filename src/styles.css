@@ -2,6 +2,9 @@
 
 @import 'tailwindcss';
 
+/* Dark mode follows the .dark class on <html>, set by ThemeService (system, light or dark) */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Shared motion: used with Angular's animate.enter / animate.leave */
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes fade-out { to { opacity: 0; } }

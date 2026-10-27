@@ -7,11 +7,12 @@ const MODULES = [
   { path: '/finance', label: 'Finanzen' },
   { path: '/shopping', label: 'Einkauf' },
   { path: '/households', label: 'Haushalte' },
+  { path: '/settings', label: 'Optionen' },
 ];
 
 const BUTTON = 'px-4 py-2 rounded-lg shadow-2xl hover:bg-fuchsia-500 text-white dark:text-sky-100';
 
-// Same header on every module page: logo + page title, navigation to the other modules, logout
+// Same header on every module page: logo + page title, navigation to the other modules and options, logout
 @Component({
   selector: 'app-page-header',
   imports: [RouterLink, RouterLinkActive],

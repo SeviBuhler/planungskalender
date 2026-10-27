@@ -24,6 +24,29 @@ export class DeviceUnlock {
     }
   }
 
+  // The devices of the current user (all domains)
+  async devices(): Promise<DeviceInfo[]> {
+    const { data, error } = await this.supabase.client
+      .from('device_credentials')
+      .select('id, credential_id, device_name, rp_id, created_at, last_used_at')
+      .order('created_at');
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((d) => ({
+      id: d.id,
+      name: d.device_name,
+      domain: d.rp_id,
+      createdAt: d.created_at,
+      lastUsedAt: d.last_used_at,
+      thisDevice: d.credential_id === localCredential(),
+    }));
+  }
+
+  async remove(device: DeviceInfo): Promise<void> {
+    const { error } = await this.supabase.client.from('device_credentials').delete().eq('id', device.id);
+    if (error) throw new Error(error.message);
+    if (device.thisDevice) forget();
+  }
+
   // Needs a mail code from the last 15 minutes
   async register(deviceName: string): Promise<void> {
     // Loaded on demand so the login page stays small
@@ -63,6 +86,33 @@ export class DeviceUnlock {
     }
     return data;
   }
+}
+
+export interface DeviceInfo {
+  id: string;
+  name: string;
+  domain: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  thisDevice: boolean;
+}
+
+export function deviceName(): string {
+  const ua = navigator.userAgent;
+  if (/iPhone/.test(ua)) return 'iPhone';
+  if (/iPad/.test(ua)) return 'iPad';
+  if (/Mac/.test(ua)) return 'Mac';
+  if (/Android/.test(ua)) return 'Android';
+  if (/Windows/.test(ua)) return 'Windows';
+  return 'Gerät';
+}
+
+function localCredential(): string | null {
+  try { return localStorage.getItem(DEVICE_KEY); } catch { return null; }
+}
+
+function forget() {
+  try { localStorage.removeItem(DEVICE_KEY); } catch { /* private mode */ }
 }
 
 function remember(credentialId: string) {

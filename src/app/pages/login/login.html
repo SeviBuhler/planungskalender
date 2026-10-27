@@ -10,6 +10,7 @@
                 <input class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl text-center text-indigo-800 dark:text-indigo-950 bg-gray-100 dark:bg-gray-200" name="password" type="password" autocomplete="current-password" [(ngModel)]="password" placeholder="Password" />
                 <button class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100 disabled:opacity-60" type="submit" [disabled]="busy()">Log in</button>
             </form>
+            <button class="m-1 text-sm underline text-[#25134D] dark:text-sky-100 disabled:opacity-60" [disabled]="busy()" (click)="handleForgotPassword()">Passwort vergessen?</button>
             <a class="m-3 p-4 w-full text-center max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100" routerLink="/signup">No user - Sign up</a>
         }
         @case ('second-factor') {
