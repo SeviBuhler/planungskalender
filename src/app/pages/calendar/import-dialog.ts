@@ -10,6 +10,9 @@ function errorMessage(error: unknown): string {
     : 'Unbekannter Fehler';
 }
 
+// Calendar exports are a few MB at most; larger files would only freeze the browser
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+
 const formatDate = (d: Date) => d.toLocaleDateString('de-CH', { day: 'numeric', month: 'short', year: 'numeric' });
 
 // Imports .ics (Google, Apple, Outlook) and .csv files into the private calendar or a household
@@ -125,6 +128,7 @@ export class ImportDialog {
     try {
       const results: ImportResult[] = [];
       for (const file of files) {
+        if (file.size > MAX_FILE_BYTES) throw new CsvFormatError(`„${file.name}“ ist grösser als 10 MB.`);
         const text = await file.text();
         const isIcs = /BEGIN:VCALENDAR/i.test(text.slice(0, 2000));
         if (!isIcs && !/\.csv$/i.test(file.name) && !text.includes(',') && !text.includes(';')) {
