@@ -105,6 +105,8 @@ export class Finance implements OnDestroy {
   });
   // Month/year summary instead of the month editor
   readonly showSummary = signal(false);
+  // Phones: the month card scrolls by itself while plan and month stay in view
+  readonly fillsScreen = computed(() => this.state() === 'ready' && this.panel() === 'none' && !this.showSummary());
 
   // Form fields for "Neuer Plan" and the plan settings
   planName = '';
