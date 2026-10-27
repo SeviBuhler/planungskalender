@@ -24,8 +24,8 @@ describe('authGuard', () => {
     expect(await executeGuard({} as never, {} as never)).toBe(true);
   });
 
-  it('sends a login without second factor to /login', async () => {
-    trust = 'second-factor';
+  it('sends a login that still needs the chosen second step to /login', async () => {
+    trust = 'mail-code';
     const result = await executeGuard({} as never, {} as never);
     expect(result instanceof UrlTree && result.toString()).toBe('/login');
   });

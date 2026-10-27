@@ -3,14 +3,16 @@ import { Supabase } from '../../services/supabase';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { RouterLink } from '@angular/router'
-import { DeviceUnlock, deviceName } from '../../features/auth/device-unlock';
+import { Passkeys } from '../../features/auth/passkeys';
 import { readCodeFromClipboard } from '../../features/auth/paste-code';
 
-type Step = 'credentials' | 'second-factor' | 'code' | 'offer-passkey';
+type Step = 'credentials' | 'code' | 'totp' | 'offer-passkey';
 
-// When the user said "later" to the device unlock on this device; asked again after 30 days
-// (new key: "later" from the time the device unlock could not work yet no longer counts)
-const PASSKEY_DECLINED_KEY = 'fortwo.deviceUnlockDeclinedAt';
+// Why a mail code is being entered
+type CodePurpose = 'second-factor' | 'forgot-password' | 'confirm-email';
+
+// When the user said "later" to a passkey on this device; asked again after 30 days
+const PASSKEY_DECLINED_KEY = 'fortwo.passkeyDeclinedAt';
 const PASSKEY_ASK_AGAIN_MS = 30 * 86400 * 1000;
 
 @Component({
@@ -25,26 +27,29 @@ export class Login implements OnInit {
   code: string = '';
 
   step = signal<Step>('credentials');
+  codePurpose = signal<CodePurpose>('second-factor');
   busy = signal(false);
   errorText = signal('');
-  // This device has a passkey for the device unlock
-  passkeyHere = signal(false);
   passkeySupported = signal(false);
-  // The user asked to set up the device unlock, so offer it after the code even after "later"
-  private wantsSetup = false;
-  // "Forgot password": log in with a mail code only, then set a new password in the settings
+  // "Forgot password": after the login go to the password change
   private forgotPassword = false;
 
-  constructor(public supabase: Supabase, private router: Router, private deviceUnlock: DeviceUnlock) {}
+  constructor(public supabase: Supabase, private router: Router, private passkeys: Passkeys) {}
 
   async ngOnInit() {
-    this.passkeySupported.set(await this.deviceUnlock.available());
-    const state = await this.supabase.trust();
-    if (state === 'trusted') {
-      this.router.navigate(['/calendar']);
-    } else if (state === 'second-factor') {
-      await this.startSecondFactor();
+    this.passkeySupported.set(await this.passkeys.supported());
+    const { data } = await this.supabase.client.auth.getSession();
+    if (data.session) {
+      this.email = data.session.user.email ?? '';
+      await this.run(() => this.continueLogin());
     }
+  }
+
+  async handlePasskey() {
+    await this.run(async () => {
+      await this.passkeys.signIn();
+      this.router.navigate(['/calendar']);
+    });
   }
 
   async handleLogin() {
@@ -53,47 +58,53 @@ export class Login implements OnInit {
         email: this.email,
         password: this.password
       });
-      if (result.error) throw new Error('E-Mail oder Passwort ist falsch.');
-      await this.startSecondFactor();
-    });
-  }
-
-  private async startSecondFactor() {
-    const { data } = await this.supabase.client.auth.getSession();
-    this.email = data.session?.user.email ?? this.email;
-    this.passkeyHere.set(this.deviceUnlock.registeredHere);
-    this.step.set('second-factor');
-  }
-
-  async handlePasskey() {
-    await this.run(async () => {
-      try {
-        await this.deviceUnlock.authenticate();
-      } catch (error) {
-        throw new Error(`Die Gerätesperre hat nicht geklappt (${messageOf(error)}). Versuch es nochmals oder nimm den Code per E-Mail.`);
+      if (result.error?.code === 'email_not_confirmed') {
+        // First login: the mail address is confirmed with a code first
+        const resend = await this.supabase.client.auth.resend({ type: 'signup', email: this.email });
+        if (resend.error) throw new Error(codeError(resend.error));
+        this.showCode('confirm-email');
+        return;
       }
-      this.router.navigate(['/calendar']);
+      if (result.error) throw new Error('E-Mail oder Passwort ist falsch.');
+      await this.continueLogin();
     });
   }
 
-  async sendCode() {
-    await this.run(async () => {
-      const result = await this.supabase.client.auth.signInWithOtp({
+  // Asks for the second step the user switched on, otherwise the login is done
+  private async continueLogin() {
+    const state = await this.supabase.trust();
+    if (state === 'trusted') {
+      this.finish();
+    } else if (state === 'totp') {
+      this.code = '';
+      this.step.set('totp');
+    } else if (state === 'mail-code') {
+      await this.sendCode('second-factor');
+    }
+  }
+
+  async sendCode(purpose: CodePurpose = this.codePurpose()) {
+    if (purpose === 'confirm-email') {
+      const { error } = await this.supabase.client.auth.resend({ type: 'signup', email: this.email });
+      if (error) throw new Error(codeError(error));
+    } else {
+      const { error } = await this.supabase.client.auth.signInWithOtp({
         email: this.email,
         options: { shouldCreateUser: false }
       });
-      if (result.error) throw new Error(codeError(result.error));
-      // The code creates a fresh session, so the password-only session is no longer needed
-      if (this.step() === 'second-factor') await this.supabase.client.auth.signOut({ scope: 'local' });
-      this.code = '';
-      this.step.set('code');
-    });
+      if (error) throw new Error(codeError(error));
+    }
+    this.showCode(purpose);
   }
 
-  // Setting up needs a fresh mail code, so this sends one and offers the device unlock afterwards
-  async setupWithCode() {
-    this.wantsSetup = true;
-    await this.sendCode();
+  async resendCode() {
+    await this.run(() => this.sendCode());
+  }
+
+  private showCode(purpose: CodePurpose) {
+    this.codePurpose.set(purpose);
+    this.code = '';
+    this.step.set('code');
   }
 
   async handleForgotPassword() {
@@ -102,7 +113,7 @@ export class Login implements OnInit {
       return;
     }
     this.forgotPassword = true;
-    await this.sendCode();
+    await this.run(() => this.sendCode('forgot-password'));
   }
 
   // Fills in the code copied from the mail and confirms it right away
@@ -113,7 +124,7 @@ export class Login implements OnInit {
       return;
     }
     this.code = code;
-    await this.verifyCode();
+    await (this.step() === 'totp' ? this.verifyTotp() : this.verifyCode());
   }
 
   async verifyCode() {
@@ -121,27 +132,41 @@ export class Login implements OnInit {
       const result = await this.supabase.client.auth.verifyOtp({
         email: this.email,
         token: this.code.replace(/\s/g, ''),
-        type: 'email'
+        type: this.codePurpose() === 'confirm-email' ? 'signup' : 'email'
       });
       if (result.error) throw new Error('Der Code stimmt nicht oder ist abgelaufen.');
-      if (this.forgotPassword) {
-        this.router.navigate(['/settings'], { queryParams: { password: 1 } });
-        return;
-      }
-      if (this.passkeySupported() && !this.deviceUnlock.registeredHere && (this.wantsSetup || !passkeyDeclined())) {
-        this.step.set('offer-passkey');
-      } else {
-        this.router.navigate(['/calendar']);
-      }
+      await this.continueLogin();
     });
+  }
+
+  async verifyTotp() {
+    await this.run(async () => {
+      const { data: factors, error } = await this.supabase.client.auth.mfa.listFactors();
+      const factor = factors?.totp[0];
+      if (error || !factor) throw new Error('Die Authenticator-App ist für dieses Konto nicht eingerichtet.');
+      const result = await this.supabase.client.auth.mfa.challengeAndVerify({ factorId: factor.id, code: this.code.replace(/\s/g, '') });
+      if (result.error) throw new Error('Der Code stimmt nicht. Nimm den aktuellen Code aus der App.');
+      this.finish();
+    });
+  }
+
+  // After the login: offer a passkey once per device, unless one is already there
+  private finish() {
+    if (this.forgotPassword) {
+      this.router.navigate(['/settings'], { queryParams: { password: 1 } });
+    } else if (this.passkeySupported() && !this.passkeys.registeredHere && !passkeyDeclined()) {
+      this.step.set('offer-passkey');
+    } else {
+      this.router.navigate(['/calendar']);
+    }
   }
 
   async setupPasskey() {
     await this.run(async () => {
       try {
-        await this.deviceUnlock.register(deviceName());
+        await this.passkeys.register();
       } catch (error) {
-        throw new Error(`Die Gerätesperre konnte nicht eingerichtet werden (${messageOf(error)}). Du kannst dich weiterhin mit dem E-Mail-Code anmelden.`);
+        throw new Error(`Der Passkey konnte nicht eingerichtet werden (${messageOf(error)}). Du kannst es später in den Optionen nochmals versuchen.`);
       }
       this.router.navigate(['/calendar']);
     });
@@ -156,7 +181,6 @@ export class Login implements OnInit {
     await this.supabase.client.auth.signOut({ scope: 'local' });
     this.password = '';
     this.forgotPassword = false;
-    this.wantsSetup = false;
     this.errorText.set('');
     this.step.set('credentials');
   }
