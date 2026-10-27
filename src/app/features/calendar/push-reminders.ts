@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { SwPush } from '@angular/service-worker';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 import { firstValueFrom } from 'rxjs';
 import { Supabase } from '../../services/supabase';
 
@@ -45,7 +46,15 @@ export class PushReminders {
 
   async enable(): Promise<void> {
     const { data, error } = await this.supabase.client.functions.invoke('send-reminders', { body: { action: 'public-key' } });
-    if (error) throw error;
+    if (error) {
+      // Show what the Edge Function (or the gateway, e.g. function not deployed) answered
+      if (error instanceof FunctionsHttpError) {
+        const status = (error.context as Response).status;
+        const details = await (error.context as Response).json().catch(() => null);
+        throw new Error(`Edge Function send-reminders (${status}): ${details?.error ?? details?.message ?? error.message}`);
+      }
+      throw error;
+    }
     const subscription = await this.swPush.requestSubscription({ serverPublicKey: data.publicKey });
     const json = subscription.toJSON();
     const { error: saveError } = await this.supabase.client.rpc('save_push_subscription', {

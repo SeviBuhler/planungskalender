@@ -37,7 +37,7 @@ function errorMessage(error: unknown): string {
         } @else {
           <label class="flex items-center justify-between gap-3 p-3 rounded-lg bg-white">
             <span>Erinnerungen auf diesem Gerät</span>
-            <input type="checkbox" class="size-5 accent-indigo-600" [checked]="on()" [disabled]="busy()" (change)="toggle($any($event.target).checked)" />
+            <input type="checkbox" class="size-5 accent-indigo-600" [checked]="on()" [disabled]="busy()" (change)="toggle($any($event.target))" />
           </label>
           @if (push.blocked) {
             <p class="text-xs text-red-800">Mitteilungen sind für ForTwo blockiert. Erlaube sie in den Einstellungen des Browsers bzw. Handys.</p>
@@ -68,7 +68,8 @@ export class ReminderDialog {
     ).finally(() => this.loading.set(false));
   }
 
-  async toggle(on: boolean) {
+  async toggle(box: HTMLInputElement) {
+    const on = box.checked;
     this.busy.set(true);
     this.errorText.set('');
     try {
@@ -77,6 +78,7 @@ export class ReminderDialog {
       this.on.set(on);
     } catch (error) {
       this.on.set(!on);
+      box.checked = !on; // the binding does not reset the box when the value stays the same
       this.errorText.set(this.push.blocked ? 'Mitteilungen wurden nicht erlaubt.' : errorMessage(error));
     } finally {
       this.busy.set(false);
