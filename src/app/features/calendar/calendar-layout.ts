@@ -1,6 +1,6 @@
 // Pure date and layout helpers for the calendar views (all in local time)
 
-export type CalendarView = 'year' | 'month' | 'day';
+export type CalendarView = 'year' | 'month' | 'week' | 'day';
 export type Category = 'work' | 'private' | 'family' | 'health' | 'leisure' | 'other';
 export type Recurrence = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly';
 
@@ -43,13 +43,36 @@ export function addDays(date: Date, days: number): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days, date.getHours(), date.getMinutes());
 }
 
+// Monday of the week the date lies in
+export function startOfWeek(date: Date): Date {
+  const day = startOfDay(date);
+  return addDays(day, -((day.getDay() + 6) % 7));
+}
+
+// ISO 8601 week number (weeks start on Monday, week 1 holds the first Thursday)
+export function isoWeek(date: Date): number {
+  const thursday = addDays(startOfWeek(date), 3);
+  const firstThursday = addDays(startOfWeek(new Date(thursday.getFullYear(), 0, 4)), 3);
+  return Math.round((thursday.getTime() - firstThursday.getTime()) / (7 * DAY_MS)) + 1;
+}
+
+// The seven days from Monday to Sunday of the week the date lies in
+export function buildWeek(date: Date, today: Date = new Date()): CalendarDay[] {
+  const monday = startOfWeek(date);
+  return Array.from({ length: 7 }, (_, i) => {
+    const day = addDays(monday, i);
+    return { date: day, inMonth: true, isToday: isSameDay(day, today) };
+  });
+}
+
 export function isSameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
-// Moves the shown date by one year, month or day; months keep the day where possible (31 Jan -> 28 Feb)
+// Moves the shown date by one year, month, week or day; months keep the day where possible (31 Jan -> 28 Feb)
 export function shiftDate(date: Date, view: CalendarView, direction: 1 | -1): Date {
   if (view === 'day') return addDays(date, direction);
+  if (view === 'week') return addDays(date, 7 * direction);
   const months = view === 'year' ? 12 * direction : direction;
   const target = new Date(date.getFullYear(), date.getMonth() + months, 1);
   const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
@@ -59,6 +82,7 @@ export function shiftDate(date: Date, view: CalendarView, direction: 1 | -1): Da
 // The time range a view shows, used to load its events
 export function visibleRange(date: Date, view: CalendarView): { from: Date; to: Date } {
   if (view === 'day') return { from: startOfDay(date), to: addDays(startOfDay(date), 1) };
+  if (view === 'week') return { from: startOfWeek(date), to: addDays(startOfWeek(date), 7) };
   if (view === 'year') return { from: new Date(date.getFullYear(), 0, 1), to: new Date(date.getFullYear() + 1, 0, 1) };
   const grid = buildMonthGrid(date.getFullYear(), date.getMonth());
   return { from: grid[0].date, to: addDays(grid[grid.length - 1].date, 1) };

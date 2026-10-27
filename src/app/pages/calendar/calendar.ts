@@ -8,8 +8,10 @@ import {
   Recurrence,
   addDays,
   buildMonthGrid,
+  buildWeek,
   eventsOnDay,
   isSameDay,
+  isoWeek,
   layoutDay,
   shiftDate,
   startOfDay,
@@ -25,6 +27,7 @@ import { ImportDialog } from './import-dialog';
 import { PageHeader } from '../../components/page-header/page-header';
 
 const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+const WEEKDAY_NAMES = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 const SWIPE_MIN_PX = 60;
 const FLICK_MIN_PX = 20;
 const FLICK_MIN_SPEED = 0.4; // px per ms
@@ -64,6 +67,17 @@ function monthsOfYear(year: number) {
   }));
 }
 
+// "26. Okt. – 1. Nov. 2026 · KW 44"; the first year only shows when the week spans New Year
+function weekTitle(date: Date): string {
+  const days = buildWeek(date);
+  const first = days[0].date;
+  const last = days[6].date;
+  const sameYear = first.getFullYear() === last.getFullYear();
+  const from = first.toLocaleDateString('de-CH', { day: 'numeric', month: 'short', year: sameYear ? undefined : 'numeric' });
+  const to = last.toLocaleDateString('de-CH', { day: 'numeric', month: 'short', year: 'numeric' });
+  return `${from} – ${to} · KW ${isoWeek(date)}`;
+}
+
 function errorMessage(error: unknown): string {
   return typeof error === 'object' && error !== null && 'message' in error
     ? String((error as { message: string }).message)
@@ -78,6 +92,7 @@ function errorMessage(error: unknown): string {
 })
 export class Calendar {
   readonly weekdays = WEEKDAYS;
+  readonly weekdayNames = WEEKDAY_NAMES;
   readonly hours = Array.from({ length: 24 }, (_, i) => i);
   readonly maxTiles = MAX_TILES;
   readonly scopeOptions: SelectOption[] = [
@@ -122,6 +137,8 @@ export class Calendar {
         return String(date.getFullYear());
       case 'month':
         return date.toLocaleDateString('de-CH', { month: 'long', year: 'numeric' });
+      case 'week':
+        return weekTitle(date);
       case 'day':
         return date.toLocaleDateString('de-CH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     }
@@ -143,6 +160,7 @@ export class Calendar {
         key: `${view}:${date.getTime()}`,
         monthDays: view === 'month' ? buildMonthGrid(date.getFullYear(), date.getMonth()) : [],
         yearMonths: view === 'year' ? monthsOfYear(date.getFullYear()) : [],
+        weekDays: view === 'week' ? buildWeek(date).map((day) => ({ ...day, events: eventsOnDay(events, day.date) })) : [],
         allDay: view === 'day' ? eventsOnDay(events, date).filter((e) => e.allDay) : [],
         positioned: view === 'day' ? layoutDay(events, date) : [],
       };
@@ -364,6 +382,10 @@ export class Calendar {
   newEventAt(hour: number) {
     const day = this.date();
     this.newEvent(new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour));
+  }
+
+  newEventOn(day: Date) {
+    this.newEvent(new Date(day.getFullYear(), day.getMonth(), day.getDate(), 9));
   }
 
   editEvent(event: CalendarEvent, domEvent?: Event) {

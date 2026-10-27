@@ -91,6 +91,21 @@ describe('Calendar', () => {
     expect(component.date()).toEqual(new Date(2027, 2, 13));
   });
 
+  it('shows a week from Monday to Sunday and moves by weeks', () => {
+    component.setView('week');
+    fixture.detectChanges();
+    expect(component.title()).toBe('26. Okt. – 1. Nov. 2026 · KW 44');
+    const week = component.pages().find((p) => p.offset === 0)!.weekDays;
+    expect(week.map((d) => d.date.getDate())).toEqual([26, 27, 28, 29, 30, 31, 1]);
+    expect(week[2].events.map((e) => e.title)).toEqual(['Zahnarzt']);
+    expect(fixture.nativeElement.textContent).toContain('Mittwoch');
+
+    component.next();
+    expect(component.date()).toEqual(new Date(2026, 10, 2));
+    component.openDay(new Date(2026, 10, 4));
+    expect(component.view()).toBe('day');
+  });
+
   it('changes the month with a horizontal swipe or mouse drag', () => {
     component.onPointerDown(pointer('pointerdown', 300));
     component.onPointerUp(pointer('pointerup', 100));
