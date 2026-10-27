@@ -53,7 +53,7 @@ describe('Calendar', () => {
     store = new FakeCalendarStore();
     store.events.push({
       id: 'x', title: 'Zahnarzt', description: null, start: new Date(2026, 9, 28, 9), end: new Date(2026, 9, 28, 10),
-      allDay: false, ownerId: 'me', householdId: null, category: null, seriesId: null, recurrence: null, recurrenceUntil: null,
+      allDay: false, ownerId: 'me', householdId: null, category: null, seriesId: null, recurrence: null, recurrenceUntil: null, reminderMinutes: null,
     });
     await TestBed.configureTestingModule({
       imports: [Calendar],
@@ -234,6 +234,21 @@ describe('Calendar', () => {
     const created = store.events.find((e) => e.title === 'Lauftraining')!;
     expect(created.category).toBe('leisure');
     expect(component.tileClass(created)).toContain('violet');
+  });
+
+  it('stores the reminder and clears it when switching to all-day', async () => {
+    component.newEvent();
+    component.patchForm({ title: 'Arzt', reminder: '15' });
+    await component.saveEvent();
+    expect(store.events.find((e) => e.title === 'Arzt')!.reminderMinutes).toBe(15);
+
+    component.newEvent();
+    component.patchForm({ title: 'Ferien', reminder: '15' });
+    component.patchForm({ allDay: true });
+    expect(component.form()!.reminder).toBe('');
+    component.patchForm({ reminder: '-540' });
+    await component.saveEvent();
+    expect(store.events.find((e) => e.title === 'Ferien')!.reminderMinutes).toBe(-540);
   });
 
   it('creates a weekly series up to the end date', async () => {

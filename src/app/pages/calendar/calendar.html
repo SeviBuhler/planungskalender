@@ -303,6 +303,9 @@
                         }
                     </div>
                 }
+                <div class="flex flex-col gap-1 text-sm">Erinnerung
+                    <app-select ariaLabel="Erinnerung" [options]="f.allDay ? allDayReminderOptions : reminderOptions" [value]="f.reminder" (valueChange)="patchForm({ reminder: $event })" />
+                </div>
                 <div class="flex flex-col gap-1 text-sm">Kategorie
                     <app-select ariaLabel="Kategorie" [options]="categoryOptions" [value]="f.category" (valueChange)="patchForm({ category: $any($event) })" />
                 </div>

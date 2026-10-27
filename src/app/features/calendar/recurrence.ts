@@ -20,6 +20,27 @@ export const RECURRENCES: { id: Recurrence; label: string; defaultMonths: number
   { id: 'yearly', label: 'Jährlich', defaultMonths: 60 },
 ];
 
+// Reminder choices, in minutes before the start (negative = after the start)
+export const REMINDERS: { minutes: number; label: string }[] = [
+  { minutes: 0, label: 'Beim Beginn' },
+  { minutes: 5, label: '5 Minuten vorher' },
+  { minutes: 15, label: '15 Minuten vorher' },
+  { minutes: 30, label: '30 Minuten vorher' },
+  { minutes: 60, label: '1 Stunde vorher' },
+  { minutes: 120, label: '2 Stunden vorher' },
+  { minutes: 1440, label: '1 Tag vorher' },
+  { minutes: 2880, label: '2 Tage vorher' },
+  { minutes: 10080, label: '1 Woche vorher' },
+];
+
+// All-day events start at midnight, so their reminders ring at 9:00
+export const ALL_DAY_REMINDERS: { minutes: number; label: string }[] = [
+  { minutes: -540, label: 'Am Tag um 9 Uhr' },
+  { minutes: 900, label: 'Am Vortag um 9 Uhr' },
+  { minutes: 2340, label: '2 Tage vorher um 9 Uhr' },
+  { minutes: 9540, label: '1 Woche vorher um 9 Uhr' },
+];
+
 export const MAX_OCCURRENCES = 1000;
 
 const DAY_MS = 24 * 60 * 60 * 1000;

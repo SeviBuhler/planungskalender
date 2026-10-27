@@ -17,6 +17,7 @@ export interface CalendarEvent {
   seriesId: string | null; // occurrences of one repeating event share this id
   recurrence: Recurrence | null;
   recurrenceUntil: string | null; // last day of the series, YYYY-MM-DD
+  reminderMinutes: number | null; // remind this many minutes before the start; null = no reminder
 }
 
 export interface CalendarDay {
