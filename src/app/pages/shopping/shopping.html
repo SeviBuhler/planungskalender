@@ -81,13 +81,6 @@
                 </button>
             }
         </div>
-        <p class="mb-4 text-sm">
-            @if (listHousehold(); as h) {
-                Geteilt im Haushalt „{{ h.name }}“. Alle Mitglieder können Artikel hinzufügen und abhaken.
-            } @else {
-                Privat, nur du siehst diese Liste.
-            }
-        </p>
         @if (panel() !== 'none') {
             <ng-container [ngTemplateOutlet]="listPanel" />
         }

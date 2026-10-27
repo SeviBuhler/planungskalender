@@ -1,41 +1,58 @@
-<section animate.enter="anim-pop-in" class="mb-4 rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-4 md:p-6 flex flex-col gap-4">
-    <div class="flex items-start justify-between gap-2">
-        <div>
-            <h2 class="font-semibold text-xl">Läden &amp; Aktionen</h2>
-            <p class="text-xs text-gray-600">Preise und Aktionen von den Websites und Apps der Läden, ohne Gewähr.</p>
-        </div>
-        <button appIconButton tone="neutral" (click)="close.emit()" aria-label="Schliessen"></button>
+<section animate.enter="anim-pop-in" class="mb-4 max-md:mb-0 max-md:min-h-0 max-md:flex-1 max-md:pb-0 rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-4 md:p-6 flex flex-col gap-3">
+    <div class="relative flex items-center gap-2">
+        <h2 class="font-semibold text-xl">Läden &amp; Aktionen</h2>
+        <button type="button" class="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-white text-sm font-bold hover:bg-fuchsia-500"
+                aria-label="Woher die Preise kommen" [attr.aria-expanded]="menu() === 'info'" (click)="toggleMenu('info')">!</button>
+        <span class="flex-1"></span>
+        <button type="button" class="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-white text-[#7040E8] shadow-sm active:scale-95 transition-transform"
+                aria-label="Meine Läden" [attr.aria-expanded]="menu() === 'stores'" (click)="toggleMenu('stores')">
+            <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9l1.5-5h13L20 9M4 9h16M4 9v1.5a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0V9M5 12.5V20h14v-7.5M10 20v-4.5h4V20" /></svg>
+            <span class="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-[#7040E8] text-[11px] font-semibold text-white">{{ stores.chains().length }}</span>
+        </button>
+        <button appIconButton tone="neutral" class="max-md:hidden" (click)="close.emit()" aria-label="Schliessen"></button>
+
+        @if (menu() !== null) {
+            <div class="fixed inset-0 z-40" aria-hidden="true" (click)="menu.set(null)"></div>
+        }
+        @if (menu() === 'info') {
+            <div animate.enter="anim-pop-in" role="dialog" aria-label="Woher die Preise kommen"
+                 class="absolute inset-x-0 top-full mt-1 z-50 max-w-sm rounded-lg bg-white text-indigo-950 shadow-lg p-3 text-sm">
+                <p>Preise und Aktionen kommen von den Websites und Apps der Läden, ohne Gewähr.</p>
+                <p class="mt-2">Bei jedem Artikel auf der Liste siehst du den günstigsten Preis deiner Läden.</p>
+                <button type="button" class="mt-2 block ml-auto px-3 py-1 rounded-lg text-indigo-700 hover:bg-gray-100" (click)="menu.set(null)">OK</button>
+            </div>
+        }
+        @if (menu() === 'stores') {
+            <div animate.enter="anim-drop-in" role="group" aria-label="Meine Läden"
+                 class="absolute right-0 top-full mt-1 z-50 w-64 rounded-xl bg-white text-indigo-950 shadow-2xl ring-1 ring-black/5 p-2 text-sm">
+                <p class="px-2 pt-1 pb-1.5 text-xs font-semibold uppercase tracking-wider text-[#7040E8]">Meine Läden</p>
+                @for (c of allChains; track c.id) {
+                    <label class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-fuchsia-100">
+                        <input type="checkbox" class="accent-indigo-600" [checked]="chosen(c.id)" (change)="toggleChain(c.id)" />
+                        <span>{{ c.label }} <span class="text-xs opacity-75">· {{ c.note }}</span></span>
+                    </label>
+                }
+            </div>
+        }
     </div>
 
-    <fieldset class="flex flex-col gap-2 text-sm">
-        <legend class="mb-1">Wo kaufst du ein?</legend>
-        <details class="rounded-lg border border-gray-300 bg-white">
-            <summary class="cursor-pointer px-3 py-2">
-                Läden auswählen ({{ stores.chains().length }} ausgewählt)
-            </summary>
-            <div class="flex flex-col gap-2 border-t border-gray-200 p-3">
-            @for (c of allChains; track c.id) {
-                <label class="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-fuchsia-100">
-                    <input type="checkbox" class="accent-indigo-600" [checked]="chosen(c.id)"
-                           (change)="toggleChain(c.id)" />
-                    <span>{{ c.label }} <span class="text-xs opacity-75">· {{ c.note }}</span></span>
-                </label>
+    @if (stores.chains().length > 0) {
+        <input class="w-full p-2 rounded bg-white" [ngModel]="filter()" (ngModelChange)="filter.set($event)" placeholder="Aktionen durchsuchen" aria-label="Aktionen durchsuchen" />
+        <!-- One tap filters by store; the chips also show which stores are chosen -->
+        <div class="flex gap-1.5 overflow-x-auto" role="radiogroup" aria-label="Laden">
+            @for (o of chainOptions(); track o.value) {
+                <button type="button" role="radio" [attr.aria-checked]="chainFilter() === o.value" (click)="chainFilter.set($any(o.value))"
+                        [class]="'shrink-0 rounded-full px-3 py-1 text-sm ' + (chainFilter() === o.value ? 'bg-[#7040E8] text-white font-semibold' : 'bg-white text-indigo-900 hover:bg-fuchsia-100')">{{ o.label }}</button>
             }
-            </div>
-        </details>
-        <p class="text-xs text-gray-600">Weitere Läden folgen.</p>
-    </fieldset>
+        </div>
+    }
 
     @if (errorText()) {
         <p class="p-2 rounded bg-red-200 text-red-900 text-sm">{{ errorText() }}</p>
     }
 
     @if (stores.chains().length > 0) {
-        <div class="flex flex-col gap-2">
-            <div class="flex flex-wrap gap-2">
-                <input class="flex-1 min-w-40 p-2 rounded bg-white" [ngModel]="filter()" (ngModelChange)="filter.set($event)" placeholder="Aktionen durchsuchen" aria-label="Aktionen durchsuchen" />
-                <app-select class="min-w-40" ariaLabel="Laden" [options]="chainOptions()" [value]="chainFilter()" (valueChange)="chainFilter.set($any($event))" />
-            </div>
+        <div class="flex flex-col gap-2 max-md:min-h-0 max-md:flex-1">
             @if (failedChains().length > 0) {
                 <p class="text-xs text-amber-800">Gerade nicht erreichbar: {{ failedChains().join(', ') }}</p>
             }
@@ -44,7 +61,7 @@
             } @else if (deals().length === 0) {
                 <p class="py-4 text-center text-sm text-gray-600">Keine Aktionen gefunden.</p>
             } @else {
-                <ul class="flex flex-col max-h-[28rem] overflow-y-auto">
+                <ul class="flex flex-col md:max-h-[28rem] overflow-y-auto overscroll-contain max-md:min-h-0 max-md:flex-1">
                     @for (deal of deals(); track deal.chain + deal.id) {
                         <li class="flex items-start gap-3 py-1.5 border-b border-gray-200 last:border-b-0">
                             @if (deal.imageUrl) {
@@ -68,10 +85,11 @@
                             <button class="shrink-0 px-2 py-1 rounded-lg bg-indigo-600 hover:bg-fuchsia-500 text-white" (click)="add.emit(deal.name)" [attr.aria-label]="deal.name + ' auf die Liste'">+</button>
                         </li>
                     }
+                    <li class="bar-spacer" aria-hidden="true"></li>
                 </ul>
             }
         </div>
     } @else {
-        <p class="text-sm text-gray-600">Wähl deine Läden, dann siehst du hier ihre Aktionen und bei jedem Artikel den günstigsten Preis.</p>
+        <p class="text-sm text-gray-600">Tipp oben auf das Laden-Symbol und wähl deine Läden, dann siehst du hier ihre Aktionen und bei jedem Artikel den günstigsten Preis.</p>
     }
 </section>

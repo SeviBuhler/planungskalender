@@ -1,7 +1,6 @@
 import { Component, OnInit, computed, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { IconButton } from '../../../components/icon-button/icon-button';
-import { Select, SelectOption } from '../../../components/select/select';
 import { CHAINS, Chain, ChainResult, StorePrices, StoreProduct, chainLabel, formatPrice } from '../../../features/shopping/store-prices';
 
 function errorMessage(error: unknown): string {
@@ -10,11 +9,12 @@ function errorMessage(error: unknown): string {
     : 'Unbekannter Fehler';
 }
 
-// "Wo kaufst du ein?" and the current promotions of those stores
+// The user's stores and their current promotions
 @Component({
   selector: 'app-store-deals',
-  imports: [FormsModule, Select, IconButton],
+  imports: [FormsModule, IconButton],
   templateUrl: './store-deals.html',
+  host: { class: 'max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col' },
 })
 export class StoreDeals implements OnInit {
   readonly add = output<string>();
@@ -27,9 +27,10 @@ export class StoreDeals implements OnInit {
   readonly loading = signal(false);
   readonly results = signal<ChainResult[]>([]);
   readonly filter = signal('');
+  readonly menu = signal<'info' | 'stores' | null>(null);
   readonly chainFilter = signal<Chain | 'all'>('all');
-  readonly chainOptions = computed<SelectOption[]>(() => [
-    { value: 'all', label: 'Alle Läden' },
+  readonly chainOptions = computed<{ value: Chain | 'all'; label: string }[]>(() => [
+    { value: 'all', label: 'Alle' },
     ...this.stores.chains().map((c) => ({ value: c, label: chainLabel(c) })),
   ]);
 
@@ -47,6 +48,10 @@ export class StoreDeals implements OnInit {
 
   ngOnInit() {
     this.loadDeals();
+  }
+
+  toggleMenu(menu: 'info' | 'stores') {
+    this.menu.set(this.menu() === menu ? null : menu);
   }
 
   chosen(chain: Chain): boolean {

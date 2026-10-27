@@ -117,8 +117,8 @@ export class Shopping implements OnDestroy {
 
   // Prices of the chosen stores ("Läden & Aktionen")
   readonly dealsOpen = signal(false);
-  // Phones: the list tab keeps the page still and scrolls only the items
-  readonly fillsScreen = computed(() => this.state() === 'ready' && !this.dealsOpen() && this.panel() === 'none');
+  // Phones: both tabs keep the page still and scroll only the items or the deals
+  readonly fillsScreen = computed(() => this.state() === 'ready' && this.panel() === 'none');
   readonly priceOpenId = signal<string | null>(null);
   readonly chainLabel = chainLabel;
   readonly formatPrice = formatPrice;
