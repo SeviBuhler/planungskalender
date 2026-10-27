@@ -27,7 +27,25 @@
 .anim-pop-in { animation: pop-in 240ms cubic-bezier(0.22, 1, 0.36, 1); }
 .anim-drop-in { animation: drop-in 180ms cubic-bezier(0.22, 1, 0.36, 1); transform-origin: top; }
 .anim-drop-out { animation: drop-out 120ms ease-in forwards; transform-origin: top; }
+/* Header menu: rises from the bottom bar on phones, drops from the gear on larger screens */
+.anim-menu-in { animation: pop-in 220ms cubic-bezier(0.22, 1, 0.36, 1); transform-origin: bottom right; }
+.anim-menu-out { animation: pop-out 140ms ease-in forwards; transform-origin: bottom right; }
+@media (min-width: 48rem) {
+  .anim-menu-in { animation-name: drop-in; transform-origin: top right; }
+  .anim-menu-out { animation-name: drop-out; transform-origin: top right; }
+}
+
+/* Phones: pages with the floating bottom bar keep their last content clear of it */
+@media (max-width: 47.99rem) {
+  :has(> app-page-header) { padding-bottom: calc(6.5rem + env(safe-area-inset-bottom)); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   [class*='anim-'] { animation-duration: 1ms !important; }
+}
+
+/* Update banner: above the floating bottom bar on phones */
+.update-banner { padding-bottom: calc(0.75rem + env(safe-area-inset-bottom)); }
+@media (max-width: 47.99rem) {
+  body:has(app-page-header) .update-banner { padding-bottom: calc(6.5rem + env(safe-area-inset-bottom)); }
 }

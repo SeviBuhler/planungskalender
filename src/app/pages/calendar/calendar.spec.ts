@@ -291,4 +291,19 @@ describe('Calendar', () => {
     await component.saveEvent();
     expect(component.errorText()).toBe('Das Wiederholungsende liegt vor dem Beginn');
   });
+
+  it('offers "Heute" on phones only once the shown page no longer contains today', () => {
+    expect(component.showsToday()).toBe(true);
+    component.next();
+    expect(component.showsToday()).toBe(false);
+    expect(component.mobileTitle()).toBe('November 2026');
+    component.goToToday();
+    component.setView('day');
+    expect(component.showsToday()).toBe(true);
+    component.next();
+    expect(component.showsToday()).toBe(false);
+    component.setView('year');
+    expect(component.showsToday()).toBe(true);
+    expect(component.mobileTitle()).toBe('2026');
+  });
 });

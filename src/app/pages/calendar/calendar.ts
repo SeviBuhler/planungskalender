@@ -25,7 +25,8 @@ import { ConfirmService } from '../../components/confirm/confirm';
 import { Select, SelectOption } from '../../components/select/select';
 import { SubscribeDialog } from './subscribe-dialog';
 import { ImportDialog } from './import-dialog';
-import { PageHeader } from '../../components/page-header/page-header';
+import { GLASS, PageHeader } from '../../components/page-header/page-header';
+import { ViewPicker } from '../../components/view-picker/view-picker';
 import { ScrollToHour } from './scroll-to-hour';
 
 const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
@@ -92,7 +93,7 @@ function errorMessage(error: unknown): string {
 
 @Component({
   selector: 'app-calendar',
-  imports: [PageHeader, FormsModule, Select, SubscribeDialog, ImportDialog, ScrollToHour],
+  imports: [PageHeader, ViewPicker, FormsModule, Select, SubscribeDialog, ImportDialog, ScrollToHour],
   templateUrl: './calendar.html',
   styleUrl: './calendar.css',
 })
@@ -152,6 +153,32 @@ export class Calendar {
         return rangeTitle(startOfWeek(date), addDays(startOfWeek(date), 6));
     }
   });
+
+  // Phone header: the year in the year view, otherwise month and year of the shown date
+  readonly mobileTitle = computed(() =>
+    this.view() === 'year' ? String(this.date().getFullYear()) : this.date().toLocaleDateString('de-CH', { month: 'long', year: 'numeric' })
+  );
+
+  // Whether today is on the shown page; otherwise phones offer the "Heute" button
+  readonly showsToday = computed(() => {
+    const date = this.date();
+    const today = startOfDay(new Date());
+    switch (this.view()) {
+      case 'year':
+        return date.getFullYear() === today.getFullYear();
+      case 'month':
+        return date.getFullYear() === today.getFullYear() && date.getMonth() === today.getMonth();
+      case 'week': {
+        const { from, to } = visibleRange(date, 'week', this.weekLength());
+        return today >= from && today < to;
+      }
+      case 'day':
+        return isSameDay(date, today);
+    }
+  });
+
+  readonly glass = GLASS;
+  readonly menuItem = 'flex w-full items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors hover:bg-indigo-50 focus:outline-none focus-visible:bg-indigo-50 dark:hover:bg-indigo-800 dark:focus-visible:bg-indigo-800 md:hidden';
 
   readonly dayHeading = computed(() =>
     this.date().toLocaleDateString('de-CH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
