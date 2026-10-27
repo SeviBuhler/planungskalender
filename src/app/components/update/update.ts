@@ -51,8 +51,7 @@ export class UpdateService {
   selector: 'app-update-banner',
   template: `
     @if (update.ready()) {
-      <div class="fixed inset-x-0 bottom-0 z-40 flex justify-center p-3 pointer-events-none"
-           style="padding-bottom: calc(0.75rem + env(safe-area-inset-bottom))">
+      <div class="update-banner fixed inset-x-0 bottom-0 z-50 flex justify-center p-3 pointer-events-none">
         <section class="pointer-events-auto w-full max-w-sm rounded-2xl bg-indigo-950 text-white shadow-2xl ring-1 ring-white/10 p-4 flex flex-col gap-3"
                  role="status" animate.enter="anim-dialog-in" animate.leave="anim-dialog-out">
           <div class="flex items-center gap-3">

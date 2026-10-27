@@ -1,7 +1,26 @@
 <div class="flex flex-col min-h-screen bg-gray-300 dark:bg-gray-800 p-3 md:p-6 text-sky-950 dark:text-sky-100">
-    <app-page-header title="Kalender" />
+    <app-page-header title="Kalender" [mobileTitle]="mobileTitle()" addLabel="Neuer Termin" (add)="newEvent()">
+        <app-view-picker headerActions [view]="view()" (viewChange)="setView($event)" />
+        <ng-container menuItems>
+            <p class="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider text-[#7040E8] dark:text-[#B590FF] md:hidden">Kalender</p>
+            <button role="menuitem" type="button" [class]="menuItem" (click)="subscribeOpen.set(true)">
+                <svg class="size-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1" /><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1" />
+                </svg>
+                <span>Abo<span class="block text-xs opacity-60">Mit Handy-Kalender verbinden</span></span>
+            </button>
+            <button role="menuitem" type="button" [class]="menuItem" (click)="importOpen.set(true)">
+                <svg class="size-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 4v11M7.5 10.5L12 15l4.5-4.5" /><path d="M4 17v1.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V17" />
+                </svg>
+                <span>Import<span class="block text-xs opacity-60">Termine aus Datei</span></span>
+            </button>
+            <div class="my-1 h-px bg-black/5 dark:bg-white/10 md:hidden" role="separator"></div>
+        </ng-container>
+    </app-page-header>
 
-    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+    <!-- Phones: the header and the bottom bar take over these controls -->
+    <div class="hidden md:flex flex-wrap items-center justify-between gap-2 mb-3">
         <div class="flex rounded-lg shadow overflow-hidden" role="group" aria-label="Ansicht">
             @for (option of [['year', 'Jahr'], ['month', 'Monat'], ['week', 'Woche'], ['day', 'Tag']]; track option[0]) {
                 <button class="px-3 py-1.5"
@@ -11,7 +30,7 @@
             }
         </div>
         @if (view() === 'year' || view() === 'month') {
-            <h2 class="order-first w-full md:order-0 md:w-auto text-xl md:text-2xl font-semibold capitalize text-center">{{ title() }}</h2>
+            <h2 class="text-2xl font-semibold capitalize text-center">{{ title() }}</h2>
         }
         <div class="flex gap-2">
             <button class="px-3 py-1.5 rounded-lg shadow bg-gray-100 text-indigo-800 hover:bg-fuchsia-100" (click)="subscribeOpen.set(true)" title="Mit Handy-Kalender verbinden">Abo</button>
@@ -46,6 +65,19 @@
                 }
             </div>
             <h3 class="mt-3 font-semibold">{{ dayHeading() }}</h3>
+        </div>
+    }
+
+    @if (!showsToday()) {
+        <!-- Phones: back to today, only once the user has paged away from it -->
+        <div class="fixed inset-x-0 bottom-[calc(6.25rem+env(safe-area-inset-bottom))] z-30 flex justify-center pointer-events-none md:hidden">
+            <button type="button" [class]="'pointer-events-auto flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-[#7040E8] dark:text-[#B590FF] active:scale-95 transition-transform ' + glass"
+                    (click)="goToToday()" animate.enter="anim-pop-in" animate.leave="anim-fade-out">
+                <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M9 14l-4-4 4-4" /><path d="M5 10h9a5 5 0 0 1 0 10h-2" />
+                </svg>
+                Heute
+            </button>
         </div>
     }
 
