@@ -53,14 +53,26 @@ export class UpdateService {
     @if (update.ready()) {
       <div class="fixed inset-x-0 bottom-0 z-40 flex justify-center p-3 pointer-events-none"
            style="padding-bottom: calc(0.75rem + env(safe-area-inset-bottom))">
-        <section class="pointer-events-auto w-full max-w-sm rounded-2xl bg-indigo-950 text-white shadow-2xl p-4 flex items-center gap-3"
+        <section class="pointer-events-auto w-full max-w-sm rounded-2xl bg-indigo-950 text-white shadow-2xl ring-1 ring-white/10 p-4 flex flex-col gap-3"
                  role="status" animate.enter="anim-dialog-in" animate.leave="anim-dialog-out">
-          <p class="flex-1">Neue Version verfügbar</p>
-          <button class="px-3 py-2 rounded-lg hover:bg-white/10 transition-colors" (click)="update.later()">Später</button>
-          <button class="px-3 py-2 rounded-lg shadow bg-indigo-500 hover:bg-indigo-400 transition-colors disabled:opacity-60"
-                  [disabled]="update.updating()" (click)="update.apply()">
-            {{ update.updating() ? 'Lädt…' : 'Jetzt aktualisieren' }}
-          </button>
+          <div class="flex items-center gap-3">
+            <span class="flex-none size-9 rounded-xl bg-indigo-400/20 text-indigo-200 grid place-items-center" aria-hidden="true">
+              <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v6h-6" />
+              </svg>
+            </span>
+            <div>
+              <p class="font-semibold">Neue Version verfügbar</p>
+              <p class="text-sm text-indigo-200">Aktualisieren dauert nur einen Moment.</p>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button class="flex-1 px-3 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-indigo-100 transition-colors" (click)="update.later()">Später</button>
+            <button class="flex-1 px-3 py-2.5 rounded-xl shadow-lg shadow-indigo-600/40 bg-indigo-600 hover:bg-indigo-500 font-semibold whitespace-nowrap transition-colors disabled:opacity-60"
+                    [disabled]="update.updating()" (click)="update.apply()">
+              {{ update.updating() ? 'Lädt…' : 'Jetzt aktualisieren' }}
+            </button>
+          </div>
         </section>
       </div>
     }
