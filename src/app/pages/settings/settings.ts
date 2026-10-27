@@ -6,6 +6,7 @@ import { ConfirmService } from '../../components/confirm/confirm';
 import { DeviceInfo, DeviceUnlock, deviceName } from '../../features/auth/device-unlock';
 import { Supabase } from '../../services/supabase';
 import { ThemeMode, ThemeService } from '../../services/theme';
+import { readCodeFromClipboard } from '../../features/auth/paste-code';
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -102,6 +103,16 @@ export class Settings implements OnInit {
       this.setupStep.set('code');
       this.unlockMessage.set(`Wir haben dir einen Code an ${this.email} geschickt.`);
     });
+  }
+
+  async pasteSetupCode() {
+    const code = await readCodeFromClipboard();
+    if (!code) {
+      this.unlockError.set('In der Zwischenablage ist kein Code. Kopiere ihn in der E-Mail oder tippe ihn ein.');
+      return;
+    }
+    this.setupCode = code;
+    await this.confirmSetup();
   }
 
   async confirmSetup() {

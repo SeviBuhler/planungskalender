@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { RouterLink } from '@angular/router'
 import { DeviceUnlock, deviceName } from '../../features/auth/device-unlock';
+import { readCodeFromClipboard } from '../../features/auth/paste-code';
 
 type Step = 'credentials' | 'second-factor' | 'code' | 'offer-passkey';
 
@@ -102,6 +103,17 @@ export class Login implements OnInit {
     }
     this.forgotPassword = true;
     await this.sendCode();
+  }
+
+  // Fills in the code copied from the mail and confirms it right away
+  async pasteCode() {
+    const code = await readCodeFromClipboard();
+    if (!code) {
+      this.errorText.set('In der Zwischenablage ist kein Code. Kopiere ihn in der E-Mail oder tippe ihn ein.');
+      return;
+    }
+    this.code = code;
+    await this.verifyCode();
   }
 
   async verifyCode() {

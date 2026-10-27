@@ -29,6 +29,7 @@
                 <form class="flex flex-wrap items-center gap-2" (ngSubmit)="confirmSetup()">
                     <input class="w-40 p-2 rounded bg-white text-center tracking-[0.3em]" name="setupCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" [(ngModel)]="setupCode" placeholder="Code" aria-label="Code aus der E-Mail" />
                     <button class="px-4 py-2 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white disabled:opacity-60" type="submit" [disabled]="busy()">Bestätigen und einrichten</button>
+                    <button class="px-4 py-2 rounded-lg shadow bg-white hover:bg-gray-200 disabled:opacity-60" type="button" [disabled]="busy()" (click)="pasteSetupCode()">Kopierten Code einfügen</button>
                     <button class="text-sm underline" type="button" (click)="cancelSetup()">Abbrechen</button>
                 </form>
             }
