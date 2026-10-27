@@ -7,6 +7,7 @@ import { Household, HouseholdStore } from '../../features/households/household-s
 import { ConfirmService } from '../../components/confirm/confirm';
 import { Select, SelectOption } from '../../components/select/select';
 import { PageHeader } from '../../components/page-header/page-header';
+import { FinanceSummary } from './finance-summary';
 
 type ListKey = 'expenses' | 'priorities';
 type ViewState = 'loading' | 'empty' | 'ready' | 'error';
@@ -65,7 +66,7 @@ function rememberedPlan(): string | null {
 
 @Component({
   selector: 'app-finance',
-  imports: [PageHeader, FormsModule, RouterLink, Select],
+  imports: [PageHeader, FormsModule, RouterLink, Select, FinanceSummary],
   templateUrl: './finance.html',
   styleUrl: './finance.css',
 })
@@ -88,6 +89,12 @@ export class Finance implements OnDestroy {
 
   readonly planHousehold = computed(() => this.householdOf(this.plan()));
   readonly isOwner = computed(() => this.plan()?.ownerId === this.userId());
+  readonly visibilityLabel = computed(() => {
+    const household = this.planHousehold();
+    return household ? `Haushalt „${household.name}“` : 'Privat';
+  });
+  // Month/year summary instead of the month editor
+  readonly showSummary = signal(false);
 
   // Form fields for "Neuer Plan" and the plan settings
   planName = '';
@@ -177,6 +184,13 @@ export class Finance implements OnDestroy {
     this.householdChoice = plan.householdId ?? 'private';
     this.errorText.set('');
     this.panel.set('settings');
+  }
+
+  // Pending edits are saved first so the summary includes them
+  async openSummary() {
+    await this.flushSave();
+    this.panel.set('none');
+    this.showSummary.set(true);
   }
 
   closePanel() {

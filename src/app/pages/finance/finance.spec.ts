@@ -35,6 +35,11 @@ class FakeBudgetStore {
     return months.at(-1) ?? null;
   }
   async load(planId: string, month: string) { return this.rows.get(`${planId}/${month}`) ?? null; }
+  async loadRange(planId: string, from: string, to: string) {
+    return [...this.rows.entries()]
+      .filter(([key]) => key.startsWith(planId + '/') && key.split('/')[1] >= from && key.split('/')[1] <= to)
+      .map(([, budget]) => budget);
+  }
   async save(planId: string, budget: MonthBudget) { this.rows.set(`${planId}/${budget.month}`, structuredClone(budget)); }
 }
 
@@ -190,5 +195,24 @@ describe('Finance', () => {
     expect(component.budget().priorities[1].desiredRate).toBeNull();
     component.setItem('priorities', 0, 'kind', 'debt');
     expect(component.result().debtTotal).toBe(2300);
+  });
+
+  it('saves pending edits before showing the summary of the open month', async () => {
+    store.plans.push({ id: 'p0', name: 'Mein Budget', ownerId: ME, householdId: null });
+    store.rows.set('p0/2026-10', BUDGET);
+    await create();
+
+    component.setField('income', 3500);
+    await component.openSummary();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(store.rows.get('p0/2026-10')?.income).toBe(3500);
+    expect(component.visibilityLabel()).toBe('Privat');
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Oktober 2026');
+    expect(text).toContain('Kreditkarte');
+    expect(text).toContain('Kontostand Ende');
   });
 });
