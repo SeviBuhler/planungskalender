@@ -1,38 +1,31 @@
-import { deviceUnlockValid, trustState } from './trust';
+import { trustState } from './trust';
 
-const NOW = Date.UTC(2026, 9, 26, 12);
-const ago = (seconds: number) => NOW / 1000 - seconds;
-const DAY = 86400;
+const at = (method: string) => ({ method, timestamp: 1_800_000_000 });
 
 describe('trustState', () => {
-  it('trusts a login with a mail code for a week', () => {
-    expect(trustState([{ method: 'otp', timestamp: ago(6 * DAY) }], NOW)).toBe('trusted');
-    expect(trustState([{ method: 'otp', timestamp: ago(7 * DAY + 1) }], NOW)).toBe('none');
+  it('is logged out without a session', () => {
+    expect(trustState(null, 'none')).toBe('none');
   });
 
-  it('trusts password + Face ID for a week', () => {
-    const amr = [
-      { method: 'password', timestamp: ago(3 * DAY) },
-      { method: 'mfa/webauthn', timestamp: ago(3 * DAY) },
-    ];
-    expect(trustState(amr, NOW)).toBe('trusted');
+  it('trusts any login when no second step is switched on', () => {
+    expect(trustState([at('password')], 'none')).toBe('trusted');
+    expect(trustState(['otp'], 'none')).toBe('trusted');
   });
 
-  it('asks for the second step right after the password', () => {
-    expect(trustState([{ method: 'password', timestamp: ago(60) }], NOW)).toBe('second-factor');
+  it('asks for the mail code after the password when chosen', () => {
+    expect(trustState([at('password')], 'mail')).toBe('mail-code');
+    expect(trustState([at('password'), at('otp')], 'mail')).toBe('trusted');
+    expect(trustState([at('otp')], 'mail')).toBe('trusted');
   });
 
-  it('starts over when the password is old and no second step happened', () => {
-    expect(trustState([{ method: 'password', timestamp: ago(20 * 60) }], NOW)).toBe('none');
-    expect(trustState([], NOW)).toBe('none');
-    expect(trustState(['password', 'otp'], NOW)).toBe('none');
+  it('asks for the app code even after a mail code when the app is chosen', () => {
+    expect(trustState([at('password')], 'totp')).toBe('totp');
+    expect(trustState([at('otp')], 'totp')).toBe('totp');
+    expect(trustState([at('password'), at('totp')], 'totp')).toBe('trusted');
   });
-});
 
-describe('deviceUnlockValid', () => {
-  it('trusts a device unlock for a week', () => {
-    expect(deviceUnlockValid(new Date(NOW - 6 * DAY * 1000).toISOString(), NOW)).toBe(true);
-    expect(deviceUnlockValid(new Date(NOW - 8 * DAY * 1000).toISOString(), NOW)).toBe(false);
-    expect(deviceUnlockValid(null, NOW)).toBe(false);
+  it('lets a passkey login through on its own', () => {
+    expect(trustState([at('passkey')], 'totp')).toBe('trusted');
+    expect(trustState([at('passkey')], 'mail')).toBe('trusted');
   });
 });

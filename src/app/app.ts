@@ -19,7 +19,7 @@ export class App {
   // Created at start so the chosen theme follows device changes on every page
   private readonly theme = inject(ThemeService);
 
-  // The PWA often stays open for days: when it comes back to the front, end a login older than 7 days
+  // When the PWA comes back to the front, check that the login still exists (e.g. after logging out elsewhere)
   async checkLogin() {
     if (document.visibilityState !== 'visible') return;
     if (/^\/(login|signup)/.test(this.router.url)) return;

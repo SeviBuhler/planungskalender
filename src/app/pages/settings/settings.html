@@ -14,45 +14,92 @@
             </div>
         </section>
 
-        <!-- Gerätesperre -->
+        <!-- Passkeys -->
         <section class="rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-4 flex flex-col gap-3">
-            <h2 class="font-semibold text-lg">Gerätesperre</h2>
-            <p class="text-sm">Bestätige deine Anmeldung mit Face ID, Fingerabdruck oder dem Code deines Geräts statt mit dem E-Mail-Code. Danach bleibst du 7 Tage angemeldet.</p>
+            <h2 class="font-semibold text-lg">Passkeys</h2>
+            <p class="text-sm">Mit einem Passkey meldest du dich ohne E-Mail und Passwort an: mit Fingerabdruck, Face ID oder dem Code deines Geräts.</p>
 
-            @if (!unlockSupported()) {
-                <p class="text-sm">Dieses Gerät oder dieser Browser unterstützt die Gerätesperre nicht. Prüfe, ob auf dem Gerät eine Bildschirmsperre eingerichtet ist.</p>
-            } @else if (registeredHere()) {
-                <p class="text-sm font-semibold">Auf diesem Gerät ist die Gerätesperre eingerichtet.</p>
-            } @else if (setupStep() === 'idle') {
-                <button class="self-start px-4 py-2 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white disabled:opacity-60" [disabled]="busy()" (click)="sendSetupCode()">Gerätesperre auf diesem Gerät einrichten</button>
+            @if (passkeySupported()) {
+                <button class="self-start px-4 py-2 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white disabled:opacity-60" [disabled]="busy()" (click)="addPasskey()">Passkey für dieses Gerät einrichten</button>
             } @else {
-                <form class="flex flex-wrap items-center gap-2" (ngSubmit)="confirmSetup()">
-                    <input class="w-40 p-2 rounded bg-white text-center tracking-[0.3em]" name="setupCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" [(ngModel)]="setupCode" placeholder="Code" aria-label="Code aus der E-Mail" />
-                    <button class="px-4 py-2 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white disabled:opacity-60" type="submit" [disabled]="busy()">Bestätigen und einrichten</button>
-                    <button class="px-4 py-2 rounded-lg shadow bg-white hover:bg-gray-200 disabled:opacity-60" type="button" [disabled]="busy()" (click)="pasteSetupCode()">Kopierten Code einfügen</button>
-                    <button class="text-sm underline" type="button" (click)="cancelSetup()">Abbrechen</button>
-                </form>
+                <p class="text-sm">Dieses Gerät oder dieser Browser unterstützt keine Passkeys. Prüfe, ob auf dem Gerät eine Bildschirmsperre eingerichtet ist.</p>
             }
 
-            @if (unlockMessage()) {
-                <p class="text-sm">{{ unlockMessage() }}</p>
+            @if (passkeyMessage()) {
+                <p class="text-sm">{{ passkeyMessage() }}</p>
             }
-            @if (unlockError()) {
-                <p class="p-2 rounded bg-red-200 text-red-900 text-sm" role="alert">{{ unlockError() }}</p>
+            @if (passkeyError()) {
+                <p class="p-2 rounded bg-red-200 text-red-900 text-sm" role="alert">{{ passkeyError() }}</p>
             }
 
-            @if (devices().length) {
+            @if (passkeyList().length) {
                 <ul class="flex flex-col gap-2 text-sm">
-                    @for (d of devices(); track d.id) {
+                    @for (p of passkeyList(); track p.id) {
                         <li class="flex flex-wrap items-center justify-between gap-2 rounded bg-white p-2">
                             <span>
-                                <b>{{ d.name }}</b>@if (d.thisDevice) { (dieses Gerät) }
-                                <span class="block text-xs">{{ d.domain }} · eingerichtet {{ formatDate(d.createdAt) }} · zuletzt benutzt {{ formatDate(d.lastUsedAt) }}</span>
+                                <b>{{ p.friendly_name ?? 'Gerät' }}</b>
+                                <span class="block text-xs">eingerichtet {{ formatDate(p.created_at) }} · zuletzt benutzt {{ formatDate(p.last_used_at) }}</span>
                             </span>
-                            <button class="text-sm underline disabled:opacity-60" [disabled]="busy()" (click)="removeDevice(d)">Entfernen</button>
+                            <button class="text-sm underline disabled:opacity-60" [disabled]="busy()" (click)="removePasskey(p)">Entfernen</button>
                         </li>
                     }
                 </ul>
+            }
+        </section>
+
+        <!-- Zweiter Schritt -->
+        <section class="rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-4 flex flex-col gap-3">
+            <h2 class="font-semibold text-lg">Zusätzliche Sicherheit (2FA)</h2>
+            <p class="text-sm">Freiwillig: Nach dem Passwort fragt die Anmeldung zusätzlich nach einem Code. Mit einem Passkey brauchst du keinen Code.</p>
+
+            @if (totpSetup(); as setup) {
+                <p class="text-sm">Scanne den QR-Code mit deiner Authenticator-App (z. B. Google Authenticator, Microsoft Authenticator oder 1Password) und gib dann den Code aus der App ein.</p>
+                <img class="w-44 h-44 bg-white rounded" [src]="setup.qrCode" alt="QR-Code für die Authenticator-App" />
+                <p class="text-xs break-all">Oder diesen Schlüssel von Hand eingeben: <span class="font-mono select-all">{{ setup.secret }}</span></p>
+                <form class="flex flex-wrap items-center gap-2" (ngSubmit)="confirmTotp()">
+                    <input class="w-32 p-2 rounded bg-white text-center tracking-[0.3em]" name="totpCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" [(ngModel)]="totpCode" placeholder="Code" aria-label="Code aus der App" />
+                    <button class="px-4 py-2 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white disabled:opacity-60" type="submit" [disabled]="busy()">Bestätigen</button>
+                    <button class="px-4 py-2 rounded-lg shadow bg-white hover:bg-gray-200 disabled:opacity-60" type="button" [disabled]="busy()" (click)="pasteTotp()">Kopierten Code einfügen</button>
+                    <button class="text-sm underline" type="button" (click)="cancelTotp()">Abbrechen</button>
+                </form>
+            } @else {
+                @switch (secondFactor()) {
+                    @case ('none') {
+                        <p class="text-sm font-semibold">Ausgeschaltet.</p>
+                        <div class="flex flex-wrap gap-2">
+                            <button class="px-4 py-2 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white disabled:opacity-60" [disabled]="busy()" (click)="setMailCode(true)">Code per E-Mail einschalten</button>
+                            <button class="px-4 py-2 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white disabled:opacity-60" [disabled]="busy()" (click)="startTotp()">Authenticator-App einrichten</button>
+                        </div>
+                    }
+                    @case ('mail') {
+                        <p class="text-sm font-semibold">Eingeschaltet: Code per E-Mail.</p>
+                        <div class="flex flex-wrap gap-2">
+                            <button class="px-4 py-2 rounded-lg shadow bg-white hover:bg-gray-200 disabled:opacity-60" [disabled]="busy()" (click)="setMailCode(false)">Ausschalten</button>
+                            <button class="px-4 py-2 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white disabled:opacity-60" [disabled]="busy()" (click)="startTotp()">Stattdessen Authenticator-App</button>
+                        </div>
+                    }
+                    @case ('totp') {
+                        <p class="text-sm font-semibold">Eingeschaltet: Authenticator-App.</p>
+                        @if (totpDisabling()) {
+                            <form class="flex flex-wrap items-center gap-2" (ngSubmit)="disableTotp()">
+                                <input class="w-32 p-2 rounded bg-white text-center tracking-[0.3em]" name="totpOff" inputmode="numeric" autocomplete="one-time-code" maxlength="6" [(ngModel)]="totpCode" placeholder="Code" aria-label="Code aus der App" />
+                                <button class="px-4 py-2 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white disabled:opacity-60" type="submit" [disabled]="busy()">Mit Code ausschalten</button>
+                                <button class="px-4 py-2 rounded-lg shadow bg-white hover:bg-gray-200 disabled:opacity-60" type="button" [disabled]="busy()" (click)="pasteTotp()">Kopierten Code einfügen</button>
+                                <button class="text-sm underline" type="button" (click)="cancelTotp()">Abbrechen</button>
+                            </form>
+                        } @else {
+                            <button class="self-start px-4 py-2 rounded-lg shadow bg-white hover:bg-gray-200 disabled:opacity-60" [disabled]="busy()" (click)="totpCode = ''; totpDisabling.set(true)">Ausschalten</button>
+                        }
+                    }
+                }
+                <p class="text-xs">Code per SMS kommt später.</p>
+            }
+
+            @if (mfaMessage()) {
+                <p class="text-sm">{{ mfaMessage() }}</p>
+            }
+            @if (mfaError()) {
+                <p class="p-2 rounded bg-red-200 text-red-900 text-sm" role="alert">{{ mfaError() }}</p>
             }
         </section>
 
@@ -62,6 +109,7 @@
             @if (passwordHint()) {
                 <p class="text-sm font-semibold">Du hast dich mit einem E-Mail-Code angemeldet. Lege hier ein neues Passwort fest.</p>
             }
+            <p class="text-sm">{{ passwordRule }}</p>
             <form class="flex flex-col gap-2 max-w-sm" (ngSubmit)="changePassword()">
                 <input type="hidden" name="username" autocomplete="username" [value]="email" />
                 <input class="p-2 rounded bg-white" name="newPassword" type="password" autocomplete="new-password" [(ngModel)]="newPassword" placeholder="Neues Passwort" aria-label="Neues Passwort" />

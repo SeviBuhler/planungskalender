@@ -1,7 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 import { createClient, SupabaseClient, Session } from '@supabase/supabase-js';
 import { environment } from '../../environments/environments';
-import { TrustState, deviceUnlockValid, trustState } from '../features/auth/trust';
+import { SecondFactor, TrustState, trustState } from '../features/auth/trust';
 
 @Injectable({
     providedIn: 'root'
@@ -15,7 +15,9 @@ export class Supabase {
 
     constructor () {
         this.supabase = createClient(environment.supabaseUrl, environment.supabaseKey, {
-            global: { fetch: retryFutureJwt }
+            global: { fetch: retryFutureJwt },
+            // Supabase passkeys are still in beta and have to be switched on in the client
+            auth: { experimental: { passkey: true } }
         });
 
         this.supabase.auth.onAuthStateChange((event, session) => {
@@ -32,23 +34,20 @@ export class Supabase {
         return this.supabase;
     }
 
-    // Whether the stored login is still trusted (see features/auth/trust.ts).
-    // A login that is neither trusted nor in the middle of the second step is signed out here.
+    // Whether the stored login may use the app (see features/auth/trust.ts)
     async trust(): Promise<TrustState> {
         const { data: { session } } = await this.supabase.auth.getSession();
         if (!session) return 'none';
         const { data } = await this.supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-        const now = Date.now();
-        let state = trustState(data?.currentAuthenticationMethods ?? [], now);
-        if (state !== 'trusted' && deviceUnlockValid(await this.deviceUnlockedAt(), now)) state = 'trusted';
-        if (state === 'none') await this.supabase.auth.signOut({ scope: 'local' });
-        return state;
+        return trustState(data?.currentAuthenticationMethods ?? [], await this.secondFactor());
     }
 
-    // When the device unlock confirmed the current login (row only visible for the current session)
-    private async deviceUnlockedAt(): Promise<string | null> {
-        const { data, error } = await this.supabase.from('device_unlocks').select('verified_at').maybeSingle();
-        return error ? null : data?.verified_at ?? null;
+    // The second step the user switched on: the authenticator app wins over the mail code
+    async secondFactor(): Promise<SecondFactor> {
+        const { data: factors } = await this.supabase.auth.mfa.listFactors();
+        if (factors?.totp.length) return 'totp';
+        const { data: { session } } = await this.supabase.auth.getSession();
+        return session?.user.user_metadata?.['mfa_mail'] === true ? 'mail' : 'none';
     }
 }
 

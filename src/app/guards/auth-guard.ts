@@ -7,7 +7,7 @@ export const authGuard: CanActivateFn = async (route, state) => {
   const supabase = inject(Supabase);
   const router = inject(Router);
 
-  // Only a login with a second factor from the last 7 days gets in; the login page handles the rest
+  // Logged in, with the second step if the user switched one on; the login page handles the rest
   if (await supabase.trust() === 'trusted') {
     return true;
   }

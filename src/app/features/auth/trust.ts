@@ -1,13 +1,11 @@
-// "Remember me" rules: after password + a second factor (mail code or Face ID / passkey)
-// the login is trusted for a week, then the user has to log in again.
+// Login rules: a login stays until the user logs out. A second step is only needed
+// when the user switched it on in the options (mail code or authenticator app).
+// A passkey login counts as complete on its own.
 
-export const TRUST_DAYS = 7;
-// How long after the password the second step may still be completed
-export const SECOND_STEP_MINUTES = 15;
+// Second step the user chose in the options
+export type SecondFactor = 'none' | 'mail' | 'totp';
 
-// Methods that count as the second step. The mail code replaces the password session, so it shows up as 'otp'.
-// The device unlock is not part of the token, see deviceUnlockValid.
-const SECOND_FACTORS = ['otp', 'mfa/webauthn', 'mfa/totp'];
+export type TrustState = 'trusted' | 'mail-code' | 'totp' | 'none';
 
 export interface AuthMethod {
   method: string;
@@ -15,20 +13,17 @@ export interface AuthMethod {
   timestamp: number;
 }
 
-export type TrustState = 'trusted' | 'second-factor' | 'none';
+// Methods that only prove the password or the mailbox
+const PASSWORD = 'password';
+const MAIL = ['otp', 'magiclink', 'email/signup'];
 
-// amr comes from the session JWT; entries without a timestamp (plain strings) are ignored
-export function trustState(amr: readonly (AuthMethod | string)[], nowMs: number): TrustState {
-  const nowSeconds = nowMs / 1000;
-  const latest = (methods: string[]) =>
-    Math.max(-Infinity, ...amr.filter((m): m is AuthMethod => typeof m !== 'string' && methods.includes(m.method)).map((m) => m.timestamp));
-
-  if (nowSeconds - latest(SECOND_FACTORS) < TRUST_DAYS * 86400) return 'trusted';
-  if (nowSeconds - latest(['password']) < SECOND_STEP_MINUTES * 60) return 'second-factor';
-  return 'none';
-}
-
-// The device unlock is stored per login session (table device_unlocks) and also counts for a week
-export function deviceUnlockValid(verifiedAt: string | null, nowMs: number): boolean {
-  return verifiedAt !== null && nowMs - Date.parse(verifiedAt) < TRUST_DAYS * 86400 * 1000;
+// amr comes from the session JWT (objects with timestamps or plain strings)
+export function trustState(amr: readonly (AuthMethod | string)[] | null, required: SecondFactor): TrustState {
+  if (!amr) return 'none';
+  const methods = amr.map((m) => (typeof m === 'string' ? m : m.method));
+  // Passkey, authenticator app (and anything else that is not password or mail)
+  const strong = methods.some((m) => m !== PASSWORD && !MAIL.includes(m));
+  if (required === 'totp') return strong ? 'trusted' : 'totp';
+  if (required === 'mail') return methods.some((m) => m !== PASSWORD) ? 'trusted' : 'mail-code';
+  return 'trusted';
 }

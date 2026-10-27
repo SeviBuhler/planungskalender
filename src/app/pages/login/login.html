@@ -5,38 +5,46 @@
 
     @switch (step()) {
         @case ('credentials') {
+            @if (passkeySupported()) {
+                <button class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100 disabled:opacity-60" [disabled]="busy()" (click)="handlePasskey()">Mit Passkey anmelden</button>
+                <p class="m-3 w-full max-w-xs text-center text-[#25134D] dark:text-sky-100 text-sm">oder mit E-Mail und Passwort</p>
+            }
             <form class="contents" (ngSubmit)="handleLogin()">
-                <input class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl text-center text- text-indigo-800 dark:text-indigo-950 bg-gray-100 dark:bg-gray-200" name="email" type="email" autocomplete="username" [(ngModel)]="email" placeholder="Email" />
-                <input class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl text-center text-indigo-800 dark:text-indigo-950 bg-gray-100 dark:bg-gray-200" name="password" type="password" autocomplete="current-password" [(ngModel)]="password" placeholder="Password" />
-                <button class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100 disabled:opacity-60" type="submit" [disabled]="busy()">Log in</button>
+                <input class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl text-center text-indigo-800 dark:text-indigo-950 bg-gray-100 dark:bg-gray-200" name="email" type="email" autocomplete="username" [(ngModel)]="email" placeholder="E-Mail" />
+                <input class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl text-center text-indigo-800 dark:text-indigo-950 bg-gray-100 dark:bg-gray-200" name="password" type="password" autocomplete="current-password" [(ngModel)]="password" placeholder="Passwort" />
+                <button class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100 disabled:opacity-60" type="submit" [disabled]="busy()">Anmelden</button>
             </form>
             <button class="m-1 text-sm underline text-[#25134D] dark:text-sky-100 disabled:opacity-60" [disabled]="busy()" (click)="handleForgotPassword()">Passwort vergessen?</button>
-            <a class="m-3 p-4 w-full text-center max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100" routerLink="/signup">No user - Sign up</a>
-        }
-        @case ('second-factor') {
-            <p class="m-3 w-full max-w-xs text-center text-[#25134D] dark:text-sky-100">Bestätige deine Anmeldung. Danach bleibst du auf diesem Gerät 7 Tage angemeldet.</p>
-            @if (passkeyHere() && passkeySupported()) {
-                <button class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100 disabled:opacity-60" [disabled]="busy()" (click)="handlePasskey()">Mit Gerätesperre bestätigen</button>
-            }
-            <button class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100 disabled:opacity-60" [disabled]="busy()" (click)="sendCode()">Code per E-Mail senden</button>
-            @if (passkeySupported() && !passkeyHere()) {
-                <button class="m-3 text-sm underline text-[#25134D] dark:text-sky-100 disabled:opacity-60" [disabled]="busy()" (click)="setupWithCode()">Gerätesperre für dieses Gerät einrichten</button>
-            }
-            <button class="m-3 text-sm underline text-[#25134D] dark:text-sky-100" (click)="backToStart()">Abbrechen</button>
+            <a class="m-3 p-4 w-full text-center max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100" routerLink="/signup">Noch kein Konto? Registrieren</a>
         }
         @case ('code') {
-            <p class="m-3 w-full max-w-xs text-center text-[#25134D] dark:text-sky-100">Wir haben dir einen Code an {{ email }} geschickt.</p>
+            <p class="m-3 w-full max-w-xs text-center text-[#25134D] dark:text-sky-100">
+                @switch (codePurpose()) {
+                    @case ('confirm-email') { Bestätige zuerst deine E-Mail-Adresse. Wir haben dir einen Code an {{ email }} geschickt. }
+                    @case ('forgot-password') { Wir haben dir einen Code an {{ email }} geschickt. Danach kannst du ein neues Passwort festlegen. }
+                    @default { Wir haben dir einen Code an {{ email }} geschickt. }
+                }
+            </p>
             <form class="contents" (ngSubmit)="verifyCode()">
                 <input class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl text-center text-2xl tracking-[0.3em] text-indigo-800 dark:text-indigo-950 bg-gray-100 dark:bg-gray-200" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" [(ngModel)]="code" placeholder="Code" />
                 <button class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100 disabled:opacity-60" type="submit" [disabled]="busy()">Bestätigen</button>
             </form>
             <button class="m-3 p-3 w-full max-w-xs rounded-lg shadow bg-gray-100 dark:bg-gray-200 text-indigo-800 dark:text-indigo-950 hover:bg-white disabled:opacity-60" [disabled]="busy()" (click)="pasteCode()">Kopierten Code einfügen</button>
-            <button class="m-3 text-sm underline text-[#25134D] dark:text-sky-100 disabled:opacity-60" [disabled]="busy()" (click)="sendCode()">Neuen Code senden</button>
-            <button class="m-3 text-sm underline text-[#25134D] dark:text-sky-100" (click)="backToStart()">Abbrechen</button>
+            <button class="m-3 text-sm underline text-[#25134D] dark:text-sky-100 disabled:opacity-60" [disabled]="busy()" (click)="resendCode()">Neuen Code senden</button>
+            <button class="m-3 text-sm underline text-[#25134D] dark:text-sky-100 disabled:opacity-60" (click)="backToStart()">Abbrechen</button>
+        }
+        @case ('totp') {
+            <p class="m-3 w-full max-w-xs text-center text-[#25134D] dark:text-sky-100">Gib den aktuellen Code aus deiner Authenticator-App ein.</p>
+            <form class="contents" (ngSubmit)="verifyTotp()">
+                <input class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl text-center text-2xl tracking-[0.3em] text-indigo-800 dark:text-indigo-950 bg-gray-100 dark:bg-gray-200" name="totp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" [(ngModel)]="code" placeholder="Code" />
+                <button class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100 disabled:opacity-60" type="submit" [disabled]="busy()">Bestätigen</button>
+            </form>
+            <button class="m-3 p-3 w-full max-w-xs rounded-lg shadow bg-gray-100 dark:bg-gray-200 text-indigo-800 dark:text-indigo-950 hover:bg-white disabled:opacity-60" [disabled]="busy()" (click)="pasteCode()">Kopierten Code einfügen</button>
+            <button class="m-3 text-sm underline text-[#25134D] dark:text-sky-100 disabled:opacity-60" (click)="backToStart()">Abbrechen</button>
         }
         @case ('offer-passkey') {
-            <p class="m-3 w-full max-w-xs text-center text-[#25134D] dark:text-sky-100">Nächstes Mal mit der Gerätesperre statt mit dem E-Mail-Code bestätigen? Das geht mit Face ID, Fingerabdruck oder dem Code deines Geräts.</p>
-            <button class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100 disabled:opacity-60" [disabled]="busy()" (click)="setupPasskey()">Gerätesperre einrichten</button>
+            <p class="m-3 w-full max-w-xs text-center text-[#25134D] dark:text-sky-100">Nächstes Mal mit einem Passkey anmelden? Dann reicht Fingerabdruck, Face ID oder der Code deines Geräts, ohne E-Mail und Passwort.</p>
+            <button class="m-3 p-4 w-full max-w-xs rounded-lg shadow-2xl bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white dark:text-sky-100 disabled:opacity-60" [disabled]="busy()" (click)="setupPasskey()">Passkey einrichten</button>
             <button class="m-3 text-sm underline text-[#25134D] dark:text-sky-100" (click)="skipPasskey()">Später</button>
         }
     }
