@@ -14,6 +14,19 @@
             </div>
         </section>
 
+        <!-- Handy quer: Seite der Navigation (only phones have the floating bar) -->
+        <section class="md:hidden rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-4 flex flex-col gap-3">
+            <h2 class="font-semibold text-lg">Navigation im Querformat</h2>
+            <p class="text-sm">Wenn du das Handy quer hältst, stehen die Navigation und der Plus-Knopf senkrecht am Bildschirmrand.</p>
+            <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="Navigation im Querformat">
+                @for (s of navSides; track s.side) {
+                    <button class="px-4 py-2 rounded-lg shadow" role="radio" [attr.aria-checked]="navSide.side() === s.side"
+                            [class]="navSide.side() === s.side ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-950'"
+                            (click)="navSide.set(s.side)">{{ s.label }}</button>
+                }
+            </div>
+        </section>
+
         <!-- Passkeys -->
         <section class="rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-4 flex flex-col gap-3">
             <h2 class="font-semibold text-lg">Passkeys</h2>

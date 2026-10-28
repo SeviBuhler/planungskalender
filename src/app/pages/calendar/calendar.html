@@ -77,7 +77,7 @@
 
     @if (!showsToday()) {
         <!-- Phones: back to today, only once the user has paged away from it -->
-        <div class="fixed inset-x-0 bottom-[calc(max(1rem,env(safe-area-inset-bottom))+5rem)] z-30 flex justify-center pointer-events-none md:hidden">
+        <div class="above-bar fixed inset-x-0 bottom-[calc(max(1rem,env(safe-area-inset-bottom))+5rem)] z-30 flex justify-center pointer-events-none md:hidden">
             <button type="button" [class]="'pointer-events-auto flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-[#7040E8] dark:text-[#B590FF] active:scale-95 transition-transform ' + glass"
                     (click)="goToToday()" animate.enter="anim-pop-in" animate.leave="anim-fade-out">
                 <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

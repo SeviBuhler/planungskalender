@@ -4,6 +4,7 @@ import { ConfirmDialog } from './components/confirm/confirm';
 import { UpdateBanner } from './components/update/update';
 import { Supabase } from './services/supabase';
 import { ThemeService } from './services/theme';
+import { NavSideService } from './services/nav-side';
 
 @Component({
   selector: 'app-root',
@@ -18,6 +19,7 @@ export class App {
   private readonly router = inject(Router);
   // Created at start so the chosen theme follows device changes on every page
   private readonly theme = inject(ThemeService);
+  private readonly navSide = inject(NavSideService);
 
   // When the PWA comes back to the front, check that the login still exists (e.g. after logging out elsewhere)
   async checkLogin() {

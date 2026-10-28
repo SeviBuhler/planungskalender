@@ -80,3 +80,50 @@ html.dark { background-color: var(--color-gray-800); color-scheme: dark; }
 @media (display-mode: standalone) and (max-width: 47.99rem) {
   :has(> app-page-header) { padding-top: 1.5rem; }
 }
+
+/* Phones turned sideways: the bar and the add button stand upright at the right edge
+   (.nav-right, the default) or the left one (see NavSideService), so the page keeps its full height.
+   The page, the menu and the floating "Heute" button make room on that side instead of below. */
+@media (max-width: 47.99rem) and (orientation: landscape) and (max-height: 32rem) {
+  html {
+    --bar-edge: max(0.75rem, env(safe-area-inset-left));
+    --bar-room: calc(var(--bar-edge) + 5rem);
+  }
+  html.nav-right { --bar-edge: max(0.75rem, env(safe-area-inset-right)); }
+
+  .phone-bar {
+    top: 0;
+    bottom: 0;
+    left: var(--bar-edge);
+    right: auto;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .nav-right .phone-bar { left: auto; right: var(--bar-edge); }
+  .phone-bar > nav { flex: none; flex-direction: column; border-radius: 2rem; }
+  .phone-bar > nav > * { flex: none; width: 3.75rem; padding-block: 0.5rem; }
+
+  :has(> app-page-header) {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+    padding-left: var(--bar-room);
+  }
+  .nav-right :has(> app-page-header) { padding-left: max(0.75rem, env(safe-area-inset-left)); padding-right: var(--bar-room); }
+  .bar-spacer { height: max(0.75rem, env(safe-area-inset-bottom)); }
+
+  .phone-menu {
+    left: var(--bar-room);
+    right: auto;
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
+    max-height: calc(100dvh - 1.5rem);
+    overflow-y: auto;
+  }
+  .nav-right .phone-menu { left: auto; right: var(--bar-room); }
+  .anim-menu-in, .anim-menu-out { transform-origin: bottom left; }
+  .nav-right .anim-menu-in, .nav-right .anim-menu-out { transform-origin: bottom right; }
+
+  .above-bar { bottom: max(1rem, env(safe-area-inset-bottom)); padding-left: var(--bar-room); }
+  .nav-right .above-bar { padding-left: 0; padding-right: var(--bar-room); }
+
+  body:has(app-page-header) .update-banner { padding-bottom: calc(0.75rem + env(safe-area-inset-bottom)); padding-left: var(--bar-room); }
+  .nav-right body:has(app-page-header) .update-banner { padding-left: 0.75rem; padding-right: var(--bar-room); }
+}

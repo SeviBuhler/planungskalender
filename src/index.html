@@ -18,6 +18,12 @@
           document.documentElement.classList.add('dark');
         }
       } catch (e) {}
+      // Same for the side of the phone bar in landscape (see NavSideService)
+      try {
+        if (localStorage.getItem('fortwo.navSide') !== 'left') document.documentElement.classList.add('nav-right');
+      } catch (e) {
+        document.documentElement.classList.add('nav-right');
+      }
     </script>
   </head>
   <body>
