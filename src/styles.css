@@ -12,6 +12,7 @@
 @keyframes pop-out { to { opacity: 0; transform: translateY(8px) scale(0.97); } }
 @keyframes drop-in { from { opacity: 0; transform: translateY(-6px) scale(0.98); } }
 @keyframes drop-out { to { opacity: 0; transform: translateY(-4px) scale(0.98); } }
+@keyframes check { 0% { transform: scale(0.6); } 60% { transform: scale(1.15); } }
 
 .anim-fade-in { animation: fade-in 200ms ease-out; }
 .anim-fade-out { animation: fade-out 160ms ease-in forwards; }
@@ -20,6 +21,7 @@
 .anim-dialog-out { animation: pop-out 160ms ease-in forwards; }
 .anim-pop-in { animation: pop-in 240ms cubic-bezier(0.22, 1, 0.36, 1); }
 .anim-drop-in { animation: drop-in 180ms cubic-bezier(0.22, 1, 0.36, 1); transform-origin: top; }
+.anim-check { animation: check 280ms ease-out; }
 .anim-drop-out { animation: drop-out 120ms ease-in forwards; transform-origin: top; }
 /* Header menu: rises from the bottom bar on phones, drops from the gear on larger screens */
 .anim-menu-in { animation: pop-in 220ms cubic-bezier(0.22, 1, 0.36, 1); transform-origin: bottom right; }

@@ -43,9 +43,15 @@ describe('StoreDeals', () => {
     expect(component.until('2026-11-02')).toBe('bis 2.11.');
 
     const added: string[] = [];
-    component.add.subscribe((name) => added.push(name));
+    component.add.subscribe((pick) => added.push(pick.name));
     fixture.detectChanges();
     (fixture.nativeElement.querySelector('[aria-label="Vollmilch auf die Liste"]') as HTMLButtonElement).click();
+    expect(added).toEqual(['Vollmilch']);
+    // The + turns into a ✓ for a moment, and a second tap adds nothing
+    fixture.detectChanges();
+    const done = fixture.nativeElement.querySelector('[aria-label="Vollmilch ist auf der Liste"]') as HTMLButtonElement;
+    expect(done.textContent?.trim()).toBe('✓');
+    done.click();
     expect(added).toEqual(['Vollmilch']);
   });
 });

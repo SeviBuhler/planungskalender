@@ -351,7 +351,21 @@ describe('Shopping', () => {
     await create();
     component.listName = 'Wocheneinkauf';
     await component.createList();
-    await component.addFromDeal('Rohschinken');
+    component.showDeals(true);
+    await component.addFromDeal({ name: 'Rohschinken', image: null });
+    await component.addFromDeal({ name: 'Brie', image: null });
+    expect(component.openItems().map((i) => i.name)).toEqual(['Rohschinken', 'Brie']);
+    expect(component.dealsAdded()).toBe(2);
+
+    // "Rückgängig" takes the last one off the list again
+    expect(component.undoItem()?.name).toBe('Brie');
+    await component.undoAdd();
     expect(component.openItems().map((i) => i.name)).toEqual(['Rohschinken']);
+    expect(component.dealsAdded()).toBe(1);
+    expect(component.undoItem()).toBeNull();
+
+    // Opening the list clears the count
+    component.showDeals(false);
+    expect(component.dealsAdded()).toBe(0);
   });
 });

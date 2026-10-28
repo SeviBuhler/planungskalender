@@ -65,9 +65,9 @@
                     @for (deal of deals(); track deal.chain + deal.id) {
                         <li class="flex items-start gap-3 py-1.5 border-b border-gray-200 last:border-b-0">
                             @if (deal.imageUrl) {
-                                <img class="size-12 shrink-0 rounded-lg object-contain bg-white" [src]="deal.imageUrl" alt="" loading="lazy" referrerpolicy="no-referrer" />
+                                <img data-thumb class="size-12 shrink-0 rounded-lg object-contain bg-white" [src]="deal.imageUrl" alt="" loading="lazy" referrerpolicy="no-referrer" />
                             } @else {
-                                <span class="size-12 shrink-0 rounded-lg bg-white" aria-hidden="true"></span>
+                                <span data-thumb class="size-12 shrink-0 rounded-lg bg-white" aria-hidden="true"></span>
                             }
                             <!-- Price under the name, so the name gets the whole width -->
                             <span class="flex-1 min-w-0 flex flex-col">
@@ -82,7 +82,10 @@
                                     </span>
                                 </span>
                             </span>
-                            <button class="shrink-0 px-2 py-1 rounded-lg bg-indigo-600 hover:bg-fuchsia-500 text-white" (click)="add.emit(deal.name)" [attr.aria-label]="deal.name + ' auf die Liste'">+</button>
+                            <!-- Turns into a ✓ for a moment after adding; a second tap meanwhile adds nothing -->
+                            @let done = added().has(key(deal));
+                            <button [class]="'shrink-0 w-[1.625rem] py-1 rounded-lg text-white ' + (done ? 'anim-check bg-green-600' : 'bg-indigo-600 hover:bg-fuchsia-500')"
+                                    (click)="done || pick(deal, $event)" [attr.aria-label]="deal.name + (done ? ' ist auf der Liste' : ' auf die Liste')">{{ done ? '✓' : '+' }}</button>
                         </li>
                     }
                     <li class="bar-spacer" aria-hidden="true"></li>
