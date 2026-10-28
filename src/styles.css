@@ -79,8 +79,8 @@ html.dark { background-color: var(--color-gray-800); color-scheme: dark; }
   :has(> app-page-header) { padding-top: 1.5rem; }
 }
 
-/* Phones turned sideways: the bar and the add button stand upright at the left edge
-   (or the right one with .nav-right, see NavSideService), so the page keeps its full height.
+/* Phones turned sideways: the bar and the add button stand upright at the right edge
+   (.nav-right, the default) or the left one (see NavSideService), so the page keeps its full height.
    The page, the menu and the floating "Heute" button make room on that side instead of below. */
 @media (max-width: 47.99rem) and (orientation: landscape) and (max-height: 32rem) {
   html {

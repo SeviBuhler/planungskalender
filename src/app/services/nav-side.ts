@@ -4,7 +4,8 @@ export type NavSide = 'left' | 'right';
 
 const NAV_SIDE_KEY = 'fortwo.navSide';
 
-// Which screen edge the phone bar moves to when the phone is turned sideways.
+// Which screen edge the phone bar moves to when the phone is turned sideways. Right by default,
+// where the right thumb rests.
 // Sets the .nav-right class on <html> that the landscape rules in styles.css use.
 @Injectable({ providedIn: 'root' })
 export class NavSideService {
@@ -27,8 +28,8 @@ export class NavSideService {
 
 function readSide(): NavSide {
   try {
-    return localStorage.getItem(NAV_SIDE_KEY) === 'right' ? 'right' : 'left';
+    return localStorage.getItem(NAV_SIDE_KEY) === 'left' ? 'left' : 'right';
   } catch {
-    return 'left';
+    return 'right';
   }
 }
