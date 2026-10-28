@@ -76,7 +76,7 @@ export const GLASS = 'bg-white/70 backdrop-blur-xl backdrop-saturate-150 shadow-
         <!-- Phones: rises from the bar over a dimmed page. Larger screens: drops from the gear. -->
         <div class="fixed inset-0 z-40 bg-indigo-950/20 md:hidden" animate.enter="anim-fade-in" animate.leave="anim-fade-out"></div>
         <div role="menu" data-menu
-             class="fixed right-3 bottom-[calc(max(1rem,env(safe-area-inset-bottom))+5.25rem)] z-50 w-64 rounded-2xl bg-white/95 p-1.5 text-indigo-950 shadow-xl ring-1 ring-black/5 backdrop-blur-xl
+             class="phone-menu fixed right-3 bottom-[calc(max(1rem,env(safe-area-inset-bottom))+5.25rem)] z-50 w-64 rounded-2xl bg-white/95 p-1.5 text-indigo-950 shadow-xl ring-1 ring-black/5 backdrop-blur-xl
                     md:absolute md:bottom-auto md:right-0 md:top-full md:mt-2 md:w-48 md:rounded-xl md:bg-white md:p-1 md:backdrop-blur-none
                     dark:bg-indigo-950/95 dark:text-sky-100 dark:ring-white/10 md:dark:bg-indigo-950"
              animate.enter="anim-menu-in" animate.leave="anim-menu-out" (keydown)="onMenuKeydown($event)" (click)="onMenuClick($event)">
@@ -94,8 +94,9 @@ export const GLASS = 'bg-white/70 backdrop-blur-xl backdrop-saturate-150 shadow-
       }
     </header>
 
-    <!-- Phones: modules and menu in a floating bar, the add button right of it -->
-    <div class="fixed inset-x-3 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 flex items-center gap-2 md:hidden">
+    <!-- Phones: modules and menu in a floating bar, the add button right of it.
+         Turned sideways it stands upright at the left or right edge (.phone-bar rules in styles.css). -->
+    <div class="phone-bar fixed inset-x-3 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 flex items-center gap-2 md:hidden">
       <nav [class]="'flex flex-1 gap-0.5 rounded-full p-1 ' + glass" aria-label="Module">
         @for (module of modules; track module.path) {
           <a [routerLink]="module.path" routerLinkActive #active="routerLinkActive" [attr.aria-current]="active.isActive ? 'page' : null"

@@ -9,6 +9,7 @@ import { PASSWORD_RULE_TEXT, passwordRuleError } from '../../features/auth/passw
 import { SecondFactor } from '../../features/auth/trust';
 import { Supabase } from '../../services/supabase';
 import { ThemeMode, ThemeService } from '../../services/theme';
+import { NavSide, NavSideService } from '../../services/nav-side';
 import { readCodeFromClipboard } from '../../features/auth/paste-code';
 
 // Setting up the authenticator app: QR code to scan, then the first code from the app
@@ -18,7 +19,8 @@ interface TotpSetup {
   secret: string;
 }
 
-// Options: passkeys, second step (mail code / authenticator app), password, light / dark mode
+// Options: passkeys, second step (mail code / authenticator app), password, light / dark mode,
+// side of the phone bar in landscape
 @Component({
   selector: 'app-settings',
   imports: [PageHeader, FormsModule],
@@ -29,6 +31,10 @@ export class Settings implements OnInit {
     { mode: 'system', label: 'Wie Gerät' },
     { mode: 'light', label: 'Hell' },
     { mode: 'dark', label: 'Dunkel' },
+  ];
+  readonly navSides: { side: NavSide; label: string }[] = [
+    { side: 'left', label: 'Links' },
+    { side: 'right', label: 'Rechts' },
   ];
   readonly passwordRule = PASSWORD_RULE_TEXT;
 
@@ -64,6 +70,7 @@ export class Settings implements OnInit {
     private passkeys: Passkeys,
     private confirm: ConfirmService,
     readonly theme: ThemeService,
+    readonly navSide: NavSideService,
     route: ActivatedRoute,
   ) {
     // Coming from "forgot password" on the login page
