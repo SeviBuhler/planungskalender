@@ -179,13 +179,10 @@
                     <input class="w-20 sm:w-28 p-1 rounded bg-white" [(ngModel)]="editQuantity" placeholder="Menge" aria-label="Menge" enterkeyhint="done" />
                 </span>
             } @else {
-                <!-- Name on top, best price, promotion and store underneath -->
+                <!-- Quantity and name on top ("2× Duschgel"), best price, promotion and store underneath -->
                 <div class="flex-1 min-w-0 flex flex-col py-1">
                     <button class="flex items-baseline gap-2 text-left" (click)="startEdit(item)" [attr.aria-label]="item.name + ' bearbeiten'">
-                        <span class="break-words min-w-0" [class.line-through]="item.checked" [class.text-gray-500]="item.checked">{{ item.name }}</span>
-                        @if (item.quantity) {
-                            <span class="shrink-0 text-sm text-gray-600">{{ item.quantity }}</span>
-                        }
+                        <span class="break-words min-w-0" [class.line-through]="item.checked" [class.text-gray-500]="item.checked">@if (quantityLabel(item.quantity); as quantity) {<span class="font-semibold mr-1">{{ quantity }}</span>}{{ item.name }}</span>
                     </button>
                     @if (!item.checked && storePrices.chains().length > 0) {
                         @if (bestPrice(item); as best) {

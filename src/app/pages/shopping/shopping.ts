@@ -2,7 +2,7 @@ import { Component, ElementRef, OnDestroy, computed, effect, signal, viewChild }
 import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { ShoppingItem, ShoppingList, ShoppingStore } from '../../features/shopping/shopping-store';
+import { ShoppingItem, ShoppingList, ShoppingStore, quantityLabel } from '../../features/shopping/shopping-store';
 import { MIN_SEARCH_LENGTH, Product, ProductSearch } from '../../features/shopping/product-search';
 import { PriceState, StorePrices, StoreProduct, chainLabel, cheapest, formatPrice, priceKey } from '../../features/shopping/store-prices';
 import { StoreDeals } from './store-deals/store-deals';
@@ -122,6 +122,7 @@ export class Shopping implements OnDestroy {
   readonly priceOpenId = signal<string | null>(null);
   readonly chainLabel = chainLabel;
   readonly formatPrice = formatPrice;
+  readonly quantityLabel = quantityLabel;
 
   // Form fields for "Neue Liste" and the list settings
   listName = '';

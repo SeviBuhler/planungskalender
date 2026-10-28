@@ -50,6 +50,12 @@ interface ItemRow {
 const LIST_COLUMNS = 'id, name, owner_id, household_id';
 const ITEM_COLUMNS = 'id, list_id, name, quantity, checked, created_at, checked_at, product_code, image_url';
 
+// Shown in front of the name: a plain number reads as a count ("2" → "2×"), anything else as typed ("500 g")
+export function quantityLabel(quantity: string | null): string {
+  const text = quantity?.trim() ?? '';
+  return /^\d+([.,]\d+)?$/.test(text) ? `${text}×` : text;
+}
+
 function toList(row: ListRow): ShoppingList {
   return { id: row.id, name: row.name, ownerId: row.owner_id, householdId: row.household_id };
 }
