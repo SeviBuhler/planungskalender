@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 
-import { Shopping } from './shopping';
+import { Shopping, oneMore } from './shopping';
 import { ShoppingItem, ShoppingList, ShoppingStore } from '../../features/shopping/shopping-store';
 import { Household, HouseholdStore } from '../../features/households/household-store';
 import { ConfirmService } from '../../components/confirm/confirm';
@@ -367,5 +367,31 @@ describe('Shopping', () => {
     // Opening the list clears the count
     component.showDeals(false);
     expect(component.dealsAdded()).toBe(0);
+  });
+
+  it('raises the quantity when the same promotion is added again', async () => {
+    await create();
+    component.listName = 'Wocheneinkauf';
+    await component.createList();
+    component.showDeals(true);
+    await component.addFromDeal({ name: 'Brie', image: null });
+    await component.addFromDeal({ name: 'brie', image: null });
+    await component.addFromDeal({ name: 'Brie', image: null });
+    expect(component.openItems().map((i) => [i.name, i.quantity])).toEqual([['Brie', '3']]);
+    expect(component.dealsAdded()).toBe(3);
+    expect(component.undoItem()?.quantity).toBe('3');
+
+    // Undo takes one off again instead of the whole row
+    await component.undoAdd();
+    expect(component.openItems().map((i) => [i.name, i.quantity])).toEqual([['Brie', '2']]);
+    expect(component.dealsAdded()).toBe(2);
+    expect(store.items.map((i) => i.quantity)).toEqual(['2']);
+  });
+
+  it('counts up in steps of one and leaves other quantities alone', () => {
+    expect(oneMore(null)).toBe('2');
+    expect(oneMore(' 4 ')).toBe('5');
+    expect(oneMore('500 g')).toBeNull();
+    expect(oneMore('1,5')).toBeNull();
   });
 });

@@ -97,7 +97,7 @@
             <div role="status" animate.enter="anim-pop-in" animate.leave="anim-fade-out"
                  class="fixed inset-x-3 bottom-[calc(max(1rem,env(safe-area-inset-bottom))+5.25rem)] z-50 flex items-center gap-3 rounded-2xl bg-[#25134D] py-2 pl-4 pr-2 text-sm text-white shadow-2xl
                         md:inset-x-auto md:bottom-6 md:left-1/2 md:w-max md:max-w-md md:-translate-x-1/2">
-                <span class="flex flex-1 min-w-0 gap-1">✓ <b class="min-w-0 truncate">{{ item.name }}</b><span class="shrink-0">auf der Liste</span></span>
+                <span class="flex flex-1 min-w-0 gap-1">✓ <b class="min-w-0 truncate">{{ quantityLabel(item.quantity) }} {{ item.name }}</b><span class="shrink-0">auf der Liste</span></span>
                 <button type="button" class="shrink-0 rounded-lg px-2 py-1.5 font-semibold text-[#C4B5FD] hover:bg-white/10" (click)="undoAdd()">Rückgängig</button>
             </div>
         }
