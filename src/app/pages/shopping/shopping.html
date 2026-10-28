@@ -68,16 +68,22 @@
             @if (isOwner()) {
                 <button class="px-3 py-2 rounded-lg shadow bg-gray-100 text-indigo-800 hover:bg-fuchsia-100" (click)="openSettings()">Bearbeiten</button>
             }
-            <button class="px-3 py-2 rounded-lg shadow bg-gray-100 text-indigo-800 hover:bg-fuchsia-100" [attr.aria-expanded]="dealsOpen()" (click)="dealsOpen.set(!dealsOpen())">Läden &amp; Aktionen</button>
+            <button class="px-3 py-2 rounded-lg shadow bg-gray-100 text-indigo-800 hover:bg-fuchsia-100" [attr.aria-expanded]="dealsOpen()" (click)="showDeals(!dealsOpen())">Läden &amp; Aktionen</button>
             <button class="px-3 py-2 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white" (click)="openNewList()">+ Neue Liste</button>
         </div>
         <div role="tablist" aria-label="Ansicht" [class]="'md:hidden mb-3 flex gap-1 rounded-full p-1 ' + glass">
             @for (tab of tabs; track tab.deals) {
-                <button role="tab" type="button" [attr.aria-selected]="dealsOpen() === tab.deals" (click)="dealsOpen.set(tab.deals)"
+                <button role="tab" type="button" [attr.aria-selected]="dealsOpen() === tab.deals" (click)="showDeals(tab.deals)"
                         [class]="'flex flex-1 items-center justify-center gap-1.5 rounded-full py-2 text-sm transition-colors ' + (dealsOpen() === tab.deals
                           ? 'bg-[#7040E8] font-semibold text-white' : 'text-[#25134D] dark:text-sky-100')">
-                    <svg class="size-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path [attr.d]="tab.icon" /></svg>
+                    <svg class="size-[18px]" [attr.data-cart]="tab.deals ? null : ''" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path [attr.d]="tab.icon" /></svg>
                     {{ tab.label }}
+                    <!-- Deals added meanwhile; re-created on every change so it pops each time -->
+                    @if (!tab.deals && dealsAdded() > 0) {
+                        @for (n of [dealsAdded()]; track n) {
+                            <span animate.enter="anim-check" class="min-w-[1.125rem] h-[1.125rem] px-1 rounded-full bg-green-600 text-white text-[0.6875rem] font-bold leading-[1.125rem] text-center">+{{ n }}</span>
+                        }
+                    }
                 </button>
             }
         </div>
@@ -85,7 +91,15 @@
             <ng-container [ngTemplateOutlet]="listPanel" />
         }
         @if (dealsOpen()) {
-            <app-store-deals (add)="addFromDeal($event)" (close)="dealsOpen.set(false)" />
+            <app-store-deals (add)="addFromDeal($event)" (close)="showDeals(false)" />
+        }
+        @if (undoItem(); as item) {
+            <div role="status" animate.enter="anim-pop-in" animate.leave="anim-fade-out"
+                 class="fixed inset-x-3 bottom-[calc(max(1rem,env(safe-area-inset-bottom))+5.25rem)] z-50 flex items-center gap-3 rounded-2xl bg-[#25134D] py-2 pl-4 pr-2 text-sm text-white shadow-2xl
+                        md:inset-x-auto md:bottom-6 md:left-1/2 md:w-max md:max-w-md md:-translate-x-1/2">
+                <span class="flex flex-1 min-w-0 gap-1">✓ <b class="min-w-0 truncate">{{ item.name }}</b><span class="shrink-0">auf der Liste</span></span>
+                <button type="button" class="shrink-0 rounded-lg px-2 py-1.5 font-semibold text-[#C4B5FD] hover:bg-white/10" (click)="undoAdd()">Rückgängig</button>
+            </div>
         }
 
         <section class="rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-3 md:p-4" [class.max-md:hidden]="dealsOpen()"

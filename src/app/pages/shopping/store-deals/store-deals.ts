@@ -3,6 +3,15 @@ import { FormsModule } from '@angular/forms';
 import { IconButton } from '../../../components/icon-button/icon-button';
 import { CHAINS, Chain, ChainResult, StorePrices, StoreProduct, chainLabel, formatPrice } from '../../../features/shopping/store-prices';
 
+// A deal put on the list, with its picture for the flight into the cart
+export interface DealPick {
+  name: string;
+  image: Element | null;
+}
+
+// How long the + stays a ✓ after adding
+const ADDED_MS = 1500;
+
 function errorMessage(error: unknown): string {
   return error instanceof Error || (typeof error === 'object' && error !== null && 'message' in error)
     ? String((error as { message: string }).message)
@@ -17,7 +26,7 @@ function errorMessage(error: unknown): string {
   host: { class: 'max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col' },
 })
 export class StoreDeals implements OnInit {
-  readonly add = output<string>();
+  readonly add = output<DealPick>();
   readonly close = output<void>();
 
   readonly allChains = CHAINS;
@@ -42,6 +51,8 @@ export class StoreDeals implements OnInit {
       .flatMap((r) => r.products)
       .filter((p) => words.every((w) => `${p.name} ${p.brand ?? ''}`.toLowerCase().includes(w)));
   });
+  // Deals just added: their + shows a ✓ for a moment
+  readonly added = signal<ReadonlySet<string>>(new Set());
   readonly failedChains = computed(() => this.results().filter((r) => r.error).map((r) => chainLabel(r.chain)));
 
   constructor(readonly stores: StorePrices) {}
@@ -83,6 +94,18 @@ export class StoreDeals implements OnInit {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  key(deal: StoreProduct): string {
+    return `${deal.chain}:${deal.id}`;
+  }
+
+  pick(deal: StoreProduct, event: Event) {
+    const row = (event.currentTarget as HTMLElement).closest('li');
+    this.add.emit({ name: deal.name, image: row?.querySelector('[data-thumb]') ?? null });
+    const key = this.key(deal);
+    this.added.update((keys) => new Set(keys).add(key));
+    setTimeout(() => this.added.update((keys) => new Set([...keys].filter((k) => k !== key))), ADDED_MS);
   }
 
   // "bis 2.11."

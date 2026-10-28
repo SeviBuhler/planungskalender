@@ -5,7 +5,8 @@ import { RouterLink } from '@angular/router';
 import { ShoppingItem, ShoppingList, ShoppingStore } from '../../features/shopping/shopping-store';
 import { MIN_SEARCH_LENGTH, Product, ProductSearch } from '../../features/shopping/product-search';
 import { PriceState, StorePrices, StoreProduct, chainLabel, cheapest, formatPrice, priceKey } from '../../features/shopping/store-prices';
-import { StoreDeals } from './store-deals/store-deals';
+import { DealPick, StoreDeals } from './store-deals/store-deals';
+import { flyToCart } from '../../features/shopping/fly-to-cart';
 import { Household, HouseholdStore } from '../../features/households/household-store';
 import { ConfirmService } from '../../components/confirm/confirm';
 import { Select, SelectOption } from '../../components/select/select';
@@ -22,6 +23,8 @@ const RELOAD_DELAY_MS = 150;
 // Search the product table once typing pauses, not on every key
 const SEARCH_DELAY_MS = 250;
 const OWN_SUGGESTIONS = 4;
+// How long "… ist auf der Liste · Rückgängig" stays after adding a deal
+const UNDO_MS = 4000;
 
 // One row of the dropdown under the item input: an item typed before or a product
 export type Suggestion = { kind: 'own'; name: string } | { kind: 'product'; product: Product };
@@ -117,6 +120,12 @@ export class Shopping implements OnDestroy {
 
   // Prices of the chosen stores ("Läden & Aktionen")
   readonly dealsOpen = signal(false);
+  // Deals added since the list tab was last open and still on the list: the count on the tab
+  private readonly dealIds = signal<string[]>([]);
+  readonly dealsAdded = computed(() => this.dealIds().filter((id) => this.items().some((i) => i.id === id)).length);
+  // The deal just added, which "Rückgängig" takes off the list again
+  readonly undoItem = signal<ShoppingItem | null>(null);
+  private undoTimer: ReturnType<typeof setTimeout> | undefined;
   // Phones: both tabs keep the page still and scroll only the items or the deals
   readonly fillsScreen = computed(() => this.state() === 'ready' && this.panel() === 'none');
   readonly priceOpenId = signal<string | null>(null);
@@ -146,7 +155,8 @@ export class Shopping implements OnDestroy {
     private householdStore: HouseholdStore,
     private confirm: ConfirmService,
     private productSearch: ProductSearch,
-    readonly storePrices: StorePrices
+    readonly storePrices: StorePrices,
+    private host: ElementRef<HTMLElement>
   ) {
     this.init();
     // Focus the name as soon as a row switches to editing
@@ -160,6 +170,7 @@ export class Shopping implements OnDestroy {
   ngOnDestroy() {
     this.unsubscribe?.();
     clearTimeout(this.reloadTimer);
+    clearTimeout(this.undoTimer);
     this.stopSearch();
   }
 
@@ -389,20 +400,43 @@ export class Shopping implements OnDestroy {
     this.priceOpenId.update((id) => (id === item.id ? null : item.id));
   }
 
-  addFromDeal(name: string) {
-    this.newName = name;
+  showDeals(open: boolean) {
+    this.dealsOpen.set(open);
+    if (!open) this.dealIds.set([]);
+  }
+
+  async addFromDeal(pick: DealPick) {
+    this.newName = pick.name;
     this.newQuantity = '';
-    return this.addItem();
+    // Phones: into the cart on the "Liste" tab (hidden on larger screens, where the list is in view).
+    // It starts at once, while the item is being saved.
+    const flight = flyToCart(pick.image, this.host.nativeElement.querySelector('[data-cart]'));
+    const item = await this.addItem();
+    if (!item) return;
+    this.undoItem.set(item);
+    clearTimeout(this.undoTimer);
+    this.undoTimer = setTimeout(() => this.undoItem.set(null), UNDO_MS);
+    await flight;
+    // The count goes up once it has landed, unless the list was opened meanwhile
+    if (this.dealsOpen()) this.dealIds.update((ids) => [...ids, item.id]);
+  }
+
+  undoAdd() {
+    const item = this.undoItem();
+    if (!item) return;
+    clearTimeout(this.undoTimer);
+    this.undoItem.set(null);
+    return this.removeItem(item);
   }
 
   productDetails(product: Product): string {
     return [product.brand, product.quantity].filter(Boolean).join(' · ');
   }
 
-  async addItem(product: Product | null = null) {
+  async addItem(product: Product | null = null): Promise<ShoppingItem | null> {
     const list = this.list();
     const name = this.newName.trim();
-    if (!list || !name) return;
+    if (!list || !name) return null;
     const quantity = optional(this.newQuantity);
     this.newName = '';
     this.newQuantity = '';
@@ -418,10 +452,12 @@ export class Shopping implements OnDestroy {
       if (!this.suggestions().some((s) => s.toLowerCase() === name.toLowerCase())) {
         this.suggestions.update((names) => [name, ...names]);
       }
+      return item;
     } catch (error) {
       this.newName = name;
       this.newQuantity = quantity ?? '';
       this.errorText.set(errorMessage(error));
+      return null;
     }
   }
 
