@@ -26,6 +26,21 @@ const OWN_SUGGESTIONS = 4;
 // How long "… ist auf der Liste · Rückgängig" stays after adding a deal
 const UNDO_MS = 4000;
 
+// A deal put on the list: a new row (before = null) or one more of a row already there
+interface DealAdd {
+  item: ShoppingItem;
+  before: ShoppingItem | null;
+  counted: boolean;
+  undone: boolean;
+}
+
+// One more of the same: nothing or a plain count goes up by one; "500 g" and the like stay a row of their own
+export function oneMore(quantity: string | null): string | null {
+  const text = quantity?.trim() ?? '';
+  if (!text) return '2';
+  return /^\d+$/.test(text) ? String(Number(text) + 1) : null;
+}
+
 // One row of the dropdown under the item input: an item typed before or a product
 export type Suggestion = { kind: 'own'; name: string } | { kind: 'product'; product: Product };
 
@@ -124,7 +139,8 @@ export class Shopping implements OnDestroy {
   private readonly dealIds = signal<string[]>([]);
   readonly dealsAdded = computed(() => this.dealIds().filter((id) => this.items().some((i) => i.id === id)).length);
   // The deal just added, which "Rückgängig" takes off the list again
-  readonly undoItem = signal<ShoppingItem | null>(null);
+  readonly undoItem = computed(() => this.lastDeal()?.item ?? null);
+  private readonly lastDeal = signal<DealAdd | null>(null);
   private undoTimer: ReturnType<typeof setTimeout> | undefined;
   // Phones: both tabs keep the page still and scroll only the items or the deals
   readonly fillsScreen = computed(() => this.state() === 'ready' && this.panel() === 'none');
@@ -407,27 +423,65 @@ export class Shopping implements OnDestroy {
   }
 
   async addFromDeal(pick: DealPick) {
-    this.newName = pick.name;
-    this.newQuantity = '';
     // Phones: into the cart on the "Liste" tab (hidden on larger screens, where the list is in view).
     // It starts at once, while the item is being saved.
     const flight = flyToCart(pick.image, this.host.nativeElement.querySelector('[data-cart]'));
-    const item = await this.addItem();
-    if (!item) return;
-    this.undoItem.set(item);
+    const add = await this.addDeal(pick.name);
+    if (!add) return;
+    this.lastDeal.set(add);
     clearTimeout(this.undoTimer);
-    this.undoTimer = setTimeout(() => this.undoItem.set(null), UNDO_MS);
+    this.undoTimer = setTimeout(() => this.lastDeal.update((d) => (d === add ? null : d)), UNDO_MS);
     await flight;
-    // The count goes up once it has landed, unless the list was opened meanwhile
-    if (this.dealsOpen()) this.dealIds.update((ids) => [...ids, item.id]);
+    // The count goes up once it has landed, unless the list was opened or the add undone meanwhile
+    if (this.dealsOpen() && !add.undone) {
+      add.counted = true;
+      this.dealIds.update((ids) => [...ids, add.item.id]);
+    }
   }
 
-  undoAdd() {
-    const item = this.undoItem();
-    if (!item) return;
+  // The same product again (still to buy) raises the quantity of its row instead of adding a second one
+  private async addDeal(name: string): Promise<DealAdd | null> {
+    const before = this.openItems().find((i) => i.name.trim().toLowerCase() === name.trim().toLowerCase() && oneMore(i.quantity) !== null);
+    if (!before) {
+      this.newName = name;
+      this.newQuantity = '';
+      const item = await this.addItem();
+      return item && { item, before: null, counted: false, undone: false };
+    }
+    const quantity = oneMore(before.quantity);
+    this.errorText.set('');
+    this.patchItem(before.id, { quantity });
+    try {
+      await this.store.updateItem(before.id, { quantity });
+    } catch (error) {
+      this.patchItem(before.id, { quantity: before.quantity });
+      this.errorText.set(errorMessage(error));
+      return null;
+    }
+    return { item: { ...before, quantity }, before, counted: false, undone: false };
+  }
+
+  async undoAdd() {
+    const add = this.lastDeal();
+    if (!add) return;
     clearTimeout(this.undoTimer);
-    this.undoItem.set(null);
-    return this.removeItem(item);
+    this.lastDeal.set(null);
+    add.undone = true;
+    if (add.counted) {
+      this.dealIds.update((ids) => {
+        const at = ids.lastIndexOf(add.item.id);
+        return at < 0 ? ids : [...ids.slice(0, at), ...ids.slice(at + 1)];
+      });
+    }
+    if (!add.before) return this.removeItem(add.item);
+    const quantity = add.before.quantity;
+    this.patchItem(add.item.id, { quantity });
+    try {
+      await this.store.updateItem(add.item.id, { quantity });
+    } catch (error) {
+      this.patchItem(add.item.id, { quantity: add.item.quantity });
+      this.errorText.set(errorMessage(error));
+    }
   }
 
   productDetails(product: Product): string {
