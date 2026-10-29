@@ -31,6 +31,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   family: 'Familie',
   health: 'Gesundheit',
   leisure: 'Freizeit',
+  birthday: 'Geburtstag',
   other: 'Sonstiges',
 };
 

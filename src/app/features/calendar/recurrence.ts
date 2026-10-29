@@ -7,6 +7,8 @@ export const CATEGORIES: { id: Category; label: string; tile: string; dot: strin
   { id: 'family', label: 'Familie', tile: 'bg-amber-200 text-amber-950', dot: 'bg-amber-500' },
   { id: 'health', label: 'Gesundheit', tile: 'bg-rose-200 text-rose-950', dot: 'bg-rose-500' },
   { id: 'leisure', label: 'Freizeit', tile: 'bg-violet-200 text-violet-950', dot: 'bg-violet-500' },
+  // Birthdays: pale gold with a gold edge on the left and a cake icon in front of the name
+  { id: 'birthday', label: 'Geburtstag', tile: 'bg-amber-50 text-amber-950 shadow-[inset_3px_0_0_var(--color-amber-400)]', dot: 'bg-amber-400' },
   { id: 'other', label: 'Sonstiges', tile: 'bg-gray-300 text-gray-900', dot: 'bg-gray-500' },
 ];
 export const DEFAULT_TILE = 'bg-indigo-100 text-indigo-900';

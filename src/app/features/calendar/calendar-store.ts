@@ -19,10 +19,11 @@ interface EventRow {
   recurrence: Recurrence | null;
   recurrence_until: string | null;
   reminder_minutes: number | null;
+  birth_year: number | null;
 }
 
 const COLUMNS =
-  'id, title, description, starts_at, ends_at, all_day, owner_id, household_id, category, series_id, recurrence, recurrence_until, reminder_minutes';
+  'id, title, description, starts_at, ends_at, all_day, owner_id, household_id, category, series_id, recurrence, recurrence_until, reminder_minutes, birth_year';
 
 function toEvent(row: EventRow): CalendarEvent {
   return {
@@ -39,6 +40,7 @@ function toEvent(row: EventRow): CalendarEvent {
     recurrence: row.recurrence,
     recurrenceUntil: row.recurrence_until,
     reminderMinutes: row.reminder_minutes,
+    birthYear: row.birth_year,
   };
 }
 
@@ -66,6 +68,7 @@ function toRow(input: EventInput) {
     recurrence: input.recurrence,
     recurrence_until: input.recurrenceUntil,
     reminder_minutes: input.reminderMinutes,
+    birth_year: input.birthYear,
   };
 }
 
@@ -106,9 +109,9 @@ export class CalendarStore {
     for (const key of new Set(events.map((e) => e.seriesKey).filter((k): k is string => k !== null))) {
       seriesIds.set(key, await seriesUuid(`${owner}|${key}`));
     }
-    // Reminders are left out, so importing the file again keeps the ones set in ForTwo
+    // Reminders and birth years are left out, so importing the file again keeps the ones set in ForTwo
     const rows = events.map((e) => {
-      const { reminder_minutes, ...row } = toRow({
+      const { reminder_minutes, birth_year, ...row } = toRow({
         title: e.title,
         description: e.description,
         start: e.start,
@@ -120,6 +123,7 @@ export class CalendarStore {
         recurrence: e.seriesKey ? e.recurrence : null,
         recurrenceUntil: e.seriesKey ? e.recurrenceUntil : null,
         reminderMinutes: null,
+        birthYear: null,
       });
       return { ...row, import_key: e.key };
     });

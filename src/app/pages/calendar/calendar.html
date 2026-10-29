@@ -143,7 +143,7 @@
                                                 <button class="block w-full mt-0.5 px-1 rounded text-left text-[11px] md:text-xs truncate ring-sky-600 hover:opacity-80"
                                                         [class]="tileClass(event)" [class.ring-2]="event.householdId"
                                                         (click)="editEvent(event, $event)" [title]="event.title">
-                                                    @if (!event.allDay) { <span class="hidden md:inline">{{ timeLabel(event).slice(0, 5) }} </span> }@if (event.seriesId) {↻ }{{ event.title }}
+                                                    @if (!event.allDay) { <span class="hidden md:inline">{{ timeLabel(event).slice(0, 5) }} </span> }@if (event.seriesId && !isBirthday(event)) {↻ }@if (isBirthday(event)) {<app-birthday-icon class="mr-0.5" />}{{ event.title }}@if (age(event); as a) {<span class="opacity-70"> {{ a }}</span>}
                                                 </button>
                                             }
                                             @if (eventsFor(day.date).length > maxTiles) {
@@ -177,7 +177,7 @@
                                                         @for (event of day.allDay; track event.id) {
                                                             <button class="rounded px-1 text-left text-[11px] truncate ring-sky-600 ring-inset hover:opacity-80"
                                                                     [class]="tileClass(event)" [class.ring-2]="event.householdId" (click)="editEvent(event, $event)" [title]="event.title">
-                                                                @if (event.seriesId) {↻ }{{ event.title }}
+                                                                @if (event.seriesId && !isBirthday(event)) {↻ }@if (isBirthday(event)) {<app-birthday-icon class="mr-0.5" />}{{ event.title }}@if (age(event); as a) {<span class="opacity-70"> {{ a }}</span>}
                                                             </button>
                                                         }
                                                     </div>
@@ -202,7 +202,7 @@
                                                             [style.top.%]="p.top" [style.height.%]="p.height"
                                                             [style.left.%]="p.left" [style.width.%]="p.width"
                                                             (click)="editEvent(p.event, $event)" [title]="p.event.title">
-                                                        <b class="block break-words">@if (p.event.seriesId) {↻ }{{ p.event.title }}</b>
+                                                        <b class="block break-words">@if (p.event.seriesId && !isBirthday(p.event)) {↻ }@if (isBirthday(p.event)) {<app-birthday-icon class="mr-0.5" />}{{ p.event.title }}</b>
                                                         <span class="block truncate opacity-80">{{ timeLabel(p.event) }}</span>
                                                     </button>
                                                 }
@@ -219,7 +219,7 @@
                                         @for (event of page.allDay; track event.id) {
                                             <button class="px-2 py-1 rounded text-left text-sm shadow ring-sky-600 hover:opacity-80"
                                                     [class]="tileClass(event)" [class.ring-2]="event.householdId" (click)="editEvent(event, $event)">
-                                                <b>@if (event.seriesId) {↻ }{{ event.title }}</b> · Ganztägig
+                                                @if (isBirthday(event)) {<app-birthday-icon class="mr-0.5" />}<b>@if (event.seriesId && !isBirthday(event)) {↻ }{{ event.title }}</b> · @if (age(event); as a) {wird {{ a }}} @else if (isBirthday(event)) {Geburtstag} @else {Ganztägig}
                                             </button>
                                         }
                                     </div>
@@ -241,7 +241,7 @@
                                                         [style.top.%]="p.top" [style.height.%]="p.height"
                                                         [style.left.%]="p.left" [style.width.%]="p.width"
                                                         (click)="editEvent(p.event, $event)">
-                                                    <b class="block truncate">@if (p.event.seriesId) {↻ }{{ p.event.title }}</b>
+                                                    <b class="block truncate">@if (p.event.seriesId && !isBirthday(p.event)) {↻ }@if (isBirthday(p.event)) {<app-birthday-icon class="mr-0.5" />}{{ p.event.title }}</b>
                                                     <span class="block truncate">{{ timeLabel(p.event) }}</span>
                                                     @if (householdName(p.event); as name) {
                                                         <span class="block truncate opacity-70">{{ name }}</span>
@@ -276,7 +276,13 @@
         <div class="dialog-backdrop fixed inset-0 flex items-center justify-center bg-black/40 p-3"
              animate.enter="anim-fade-in" animate.leave="anim-fade-out" (click)="closeForm()">
             <section animate.enter="anim-dialog-in" animate.leave="anim-dialog-out" class="w-full max-w-lg rounded-2xl bg-gray-100 text-indigo-950 shadow-2xl p-4 flex flex-col gap-3" (click)="$event.stopPropagation()">
-                <h2 class="font-semibold text-xl">{{ f.original ? 'Termin bearbeiten' : 'Neuer Termin' }}</h2>
+                <h2 class="font-semibold text-xl flex items-center gap-2">
+                    @if (f.category === 'birthday') {
+                        <app-birthday-icon />{{ f.original ? 'Geburtstag bearbeiten' : 'Neuer Geburtstag' }}
+                    } @else {
+                        {{ f.original ? 'Termin bearbeiten' : 'Neuer Termin' }}
+                    }
+                </h2>
                 <input class="p-2 rounded bg-white" [ngModel]="f.title" (ngModelChange)="patchForm({ title: $event })" placeholder="Titel" aria-label="Titel" />
                 <label class="flex items-center gap-2 text-sm"><input type="checkbox" [ngModel]="f.allDay" (ngModelChange)="patchForm({ allDay: $event })" /> Ganztägig</label>
                 <div class="grid grid-cols-2 gap-2 text-sm">
@@ -318,8 +324,14 @@
                     <app-select ariaLabel="Erinnerung" [options]="f.allDay ? allDayReminderOptions : reminderOptions" [value]="f.reminder" (valueChange)="patchForm({ reminder: $event })" />
                 </div>
                 <div class="flex flex-col gap-1 text-sm">Kategorie
-                    <app-select ariaLabel="Kategorie" [options]="categoryOptions" [value]="f.category" (valueChange)="patchForm({ category: $any($event) })" />
+                    <app-select ariaLabel="Kategorie" [options]="categoryOptions" [value]="f.category" (valueChange)="setCategory($any($event))" />
                 </div>
+                @if (f.category === 'birthday') {
+                    <label class="flex flex-col gap-1 text-sm">Geburtsjahr (optional)
+                        <input class="p-2 rounded bg-white" type="number" inputmode="numeric" min="1900" placeholder="z.B. 1996" [ngModel]="f.birthYear" (ngModelChange)="patchForm({ birthYear: $event ?? '' })" />
+                        <span class="text-xs opacity-60">Dann steht im Kalender, wie alt die Person wird.</span>
+                    </label>
+                }
                 <div class="flex flex-col gap-1 text-sm">Wer sieht den Termin?
                     <app-select ariaLabel="Wer sieht den Termin?" [options]="visibilityOptions()" [value]="f.householdChoice" (valueChange)="patchForm({ householdChoice: $event })" />
                 </div>
