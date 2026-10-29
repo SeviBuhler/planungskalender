@@ -131,10 +131,10 @@
                 <h3 class="font-semibold text-lg mb-3">Startguthaben & Einnahmen</h3>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <label class="flex flex-col text-sm">Startguthaben (CHF)
-                        <input class="mt-1 p-2 rounded bg-yellow-100 text-right" type="number" [ngModel]="budget().startBalance" (ngModelChange)="setField('startBalance', $event)" />
+                        <input class="mt-1 p-2 rounded bg-yellow-100 text-right text-base" appSelectAll type="number" [ngModel]="budget().startBalance" (ngModelChange)="setField('startBalance', $event)" />
                     </label>
                     <label class="flex flex-col text-sm">Einnahmen (CHF)
-                        <input class="mt-1 p-2 rounded bg-yellow-100 text-right" type="number" [ngModel]="budget().income" (ngModelChange)="setField('income', $event)" />
+                        <input class="mt-1 p-2 rounded bg-yellow-100 text-right text-base" appSelectAll type="number" [ngModel]="budget().income" (ngModelChange)="setField('income', $event)" />
                     </label>
                 </div>
                 <p class="mt-3 text-right font-semibold">Total verfügbar: {{ chf(result().totalAvailable) }} CHF</p>
@@ -143,11 +143,9 @@
             <!-- 1. Ausgaben -->
             <section class="rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-4 max-md:rounded-none max-md:shadow-none max-md:border-b max-md:border-gray-300">
                 <h3 class="font-semibold text-lg mb-3">1. Ausgaben</h3>
-                <div class="hidden sm:grid grid-cols-12 gap-2 text-xs font-semibold mb-1">
-                    <span class="col-span-2">Art</span><span class="col-span-4">Position</span><span class="col-span-2 text-right">Betrag</span><span class="col-span-1 text-right">Anzahl</span><span class="col-span-2 text-right">Total</span>
-                </div>
                 @for (expense of budget().expenses; track $index; let i = $index) {
-                    <div class="grid grid-cols-12 gap-2 items-center mb-2">
+                    <!-- Reads as a sum: CHF amount × quantity = total -->
+                    <div class="grid grid-cols-12 gap-2 items-center mb-3 sm:mb-2">
                         <button class="col-span-3 sm:col-span-2 px-1 py-2 rounded-lg text-xs font-semibold transition-colors"
                                 [class]="expense.oneTime ? 'bg-amber-200 text-amber-900' : 'bg-sky-200 text-sky-900'"
                                 (click)="toggleOneTime(i)"
@@ -155,10 +153,17 @@
                                 [title]="expense.oneTime ? 'Nur in diesem Monat' : 'Wird in die nächsten Monate übernommen'">
                             {{ expense.oneTime ? 'Einmalig' : 'Monatlich' }}
                         </button>
-                        <input class="col-span-9 sm:col-span-4 p-2 rounded bg-white" [ngModel]="expense.name" (ngModelChange)="setItem('expenses', i, 'name', $event)" placeholder="Position" />
-                        <input class="col-span-4 sm:col-span-2 p-2 rounded bg-yellow-100 text-right" type="number" [ngModel]="expense.amountPerUnit" (ngModelChange)="setItem('expenses', i, 'amountPerUnit', $event)" aria-label="Betrag pro Einheit" />
-                        <input class="col-span-3 sm:col-span-1 p-2 rounded bg-yellow-100 text-right" type="number" [ngModel]="expense.quantity" (ngModelChange)="setItem('expenses', i, 'quantity', $event)" aria-label="Anzahl" />
-                        <span class="col-span-3 sm:col-span-2 text-right">{{ chf(expenseTotal(expense)) }}</span>
+                        <input class="col-span-9 sm:col-span-4 p-2 rounded bg-white" [ngModel]="expense.name" (ngModelChange)="setItem('expenses', i, 'name', $event)" placeholder="Wofür? z. B. Miete" />
+                        <div class="col-span-10 sm:col-span-5 flex items-center gap-1.5">
+                            <span class="relative flex-[5] min-w-0">
+                                <span class="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs opacity-60">CHF</span>
+                                <input class="w-full p-2 pl-10 rounded bg-yellow-100 text-right" appSelectAll type="number" [ngModel]="expense.amountPerUnit" (ngModelChange)="setItem('expenses', i, 'amountPerUnit', $event)" aria-label="Betrag pro Einheit" />
+                            </span>
+                            <span class="opacity-60" aria-hidden="true">×</span>
+                            <input class="flex-[3] min-w-0 p-2 rounded bg-yellow-100 text-right" appSelectAll type="number" [ngModel]="expense.quantity" (ngModelChange)="setItem('expenses', i, 'quantity', $event)" aria-label="Anzahl" />
+                            <span class="opacity-60" aria-hidden="true">=</span>
+                            <span class="flex-[4] text-right font-semibold" aria-label="Total">{{ chf(expenseTotal(expense)) }}</span>
+                        </div>
                         <button appIconButton class="col-span-2 sm:col-span-1" (click)="removeItem('expenses', i)" aria-label="Ausgabe entfernen"></button>
                     </div>
                 }
@@ -190,28 +195,29 @@
                     </div>
                 }
                 @for (item of budget().priorities; track $index; let i = $index; let last = $last) {
-                    <div class="grid grid-cols-12 gap-2 items-center mb-3 sm:mb-2">
-                        <div class="col-span-2 sm:col-span-1 flex flex-col items-center leading-none">
+                    <!-- Phones: name and × on the first line, amounts on the second; all four labels share size and height -->
+                    <div class="grid grid-cols-12 gap-x-2 gap-y-1 items-end mb-3 sm:mb-2">
+                        <div class="self-center col-span-2 sm:col-span-1 flex flex-col items-center leading-none">
                             <button class="px-1 disabled:opacity-30" [disabled]="i === 0" (click)="move(i, -1)" aria-label="Priorität erhöhen">▲</button>
                             <span class="text-xs font-semibold">{{ i + 1 }}</span>
                             <button class="px-1 disabled:opacity-30" [disabled]="last" (click)="move(i, 1)" aria-label="Priorität senken">▼</button>
                         </div>
-                        <button class="col-span-3 sm:col-span-1 px-1 py-2 rounded-lg text-xs font-semibold transition-colors"
+                        <button class="self-center col-span-3 sm:col-span-1 px-1 py-2 rounded-lg text-xs font-semibold transition-colors"
                                 [class]="item.kind === 'debt' ? 'bg-rose-200 text-rose-900' : 'bg-emerald-200 text-emerald-900'"
                                 (click)="setItem('priorities', i, 'kind', item.kind === 'debt' ? 'saving' : 'debt')"
                                 [attr.aria-label]="'Art wechseln, jetzt ' + (item.kind === 'debt' ? 'Schuld' : 'Sparziel')">
                             {{ item.kind === 'debt' ? 'Schuld' : 'Sparen' }}
                         </button>
-                        <input class="col-span-7 sm:col-span-3 p-2 rounded bg-white" [ngModel]="item.name" (ngModelChange)="setItem('priorities', i, 'name', $event)" [placeholder]="item.kind === 'debt' ? 'Schuld' : 'Sparziel'" />
-                        <label class="col-span-4 sm:col-span-2 text-xs">{{ item.kind === 'debt' ? 'Offen' : 'Ziel' }}
-                            <input class="w-full p-2 rounded bg-yellow-100 text-right" type="number" [ngModel]="item.amount" (ngModelChange)="setItem('priorities', i, 'amount', $event)" />
+                        <input class="self-center col-span-5 sm:col-span-3 p-2 rounded bg-white" [ngModel]="item.name" (ngModelChange)="setItem('priorities', i, 'name', $event)" [placeholder]="item.kind === 'debt' ? 'Schuld' : 'Sparziel'" />
+                        <button appIconButton class="self-center col-span-2 sm:col-span-1 sm:order-last" (click)="removeItem('priorities', i)" aria-label="Position entfernen"></button>
+                        <label class="col-span-3 sm:col-span-2 text-xs leading-4">{{ item.kind === 'debt' ? 'Offen' : 'Ziel' }}
+                            <input class="w-full mt-0.5 p-2 rounded bg-yellow-100 text-right text-base" appSelectAll type="number" [ngModel]="item.amount" (ngModelChange)="setItem('priorities', i, 'amount', $event)" />
                         </label>
-                        <label class="col-span-4 sm:col-span-2 text-xs">Wunschzahlung
-                            <input class="w-full p-2 rounded bg-yellow-100 text-right" type="number" placeholder="max." [ngModel]="item.desiredRate" (ngModelChange)="setItem('priorities', i, 'desiredRate', $event)" />
+                        <label class="col-span-3 sm:col-span-2 text-xs leading-4">Wunschzahlung
+                            <input class="w-full mt-0.5 p-2 rounded bg-yellow-100 text-right text-base" appSelectAll type="number" placeholder="max." [ngModel]="item.desiredRate" (ngModelChange)="setItem('priorities', i, 'desiredRate', $event)" />
                         </label>
-                        <span class="col-span-2 sm:col-span-1 text-right text-sm">Zahlung<br><b>{{ chf(result().priorities[i].payment) }}</b></span>
-                        <span class="col-span-2 sm:col-span-1 text-right text-sm">Rest<br>{{ chf(result().priorities[i].remaining) }}</span>
-                        <button appIconButton class="col-span-12 sm:col-span-1" (click)="removeItem('priorities', i)" aria-label="Position entfernen"></button>
+                        <span class="col-span-3 sm:col-span-1 text-xs leading-4 text-right">Zahlung<span class="mt-0.5 flex h-10 items-center justify-end text-sm font-semibold">{{ chf(result().priorities[i].payment) }}</span></span>
+                        <span class="col-span-3 sm:col-span-1 text-xs leading-4 text-right">Rest<span class="mt-0.5 flex h-10 items-center justify-end text-sm">{{ chf(result().priorities[i].remaining) }}</span></span>
                     </div>
                 }
                 <div class="flex flex-wrap justify-between items-center gap-2 mt-2">
