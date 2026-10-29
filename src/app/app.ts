@@ -2,13 +2,14 @@ import { Component, inject, signal } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
 import { ConfirmDialog } from './components/confirm/confirm';
 import { UpdateBanner } from './components/update/update';
+import { VaultGate } from './components/vault-gate/vault-gate';
 import { Supabase } from './services/supabase';
 import { ThemeService } from './services/theme';
 import { NavSideService } from './services/nav-side';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, ConfirmDialog, UpdateBanner],
+  imports: [RouterOutlet, ConfirmDialog, UpdateBanner, VaultGate],
   templateUrl: './app.html',
   styleUrl: './app.css',
   host: { '(document:visibilitychange)': 'checkLogin()' }

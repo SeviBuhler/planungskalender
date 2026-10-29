@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Supabase } from '../../services/supabase';
+import { Vault } from '../crypto/vault';
 
 export type HouseholdModule = 'finance' | 'calendar' | 'shopping';
 
@@ -42,7 +43,7 @@ function toHousehold(row: HouseholdRow): Household {
   providedIn: 'root'
 })
 export class HouseholdStore {
-  constructor(private supabase: Supabase) {}
+  constructor(private supabase: Supabase, private vault: Vault) {}
 
   async list(): Promise<Household[]> {
     const { data, error } = await this.supabase.client.from('households').select(COLUMNS).order('created_at');
@@ -56,12 +57,14 @@ export class HouseholdStore {
       household_modules: modules,
     });
     if (error) throw error;
+    await this.vault.refresh(); // creates the household key
     return toHousehold(data as HouseholdRow);
   }
 
   async join(code: string): Promise<Household> {
     const { data, error } = await this.supabase.client.rpc('join_household', { code });
     if (error) throw error;
+    await this.vault.refresh(); // the household key itself arrives once another member opens ForTwo
     return toHousehold(data as HouseholdRow);
   }
 

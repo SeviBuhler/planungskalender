@@ -27,6 +27,53 @@
             </div>
         </section>
 
+        <!-- Verschlüsselung -->
+        <section class="rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-4 flex flex-col gap-3">
+            <h2 class="font-semibold text-lg">Verschlüsselung</h2>
+            <p class="text-sm">Deine Termine werden auf deinem Gerät verschlüsselt, bevor sie gespeichert werden. Lesen können sie nur du und die Mitglieder des Haushalts, mit dem du sie teilst.</p>
+
+            @if (vault.state() === 'ready') {
+                <p class="text-sm font-semibold">Eingeschaltet und auf diesem Gerät entsperrt.</p>
+
+                <div class="flex flex-col gap-2">
+                    <h3 class="font-semibold">Titel im Kalender-Abo und in Erinnerungen</h3>
+                    <p class="text-sm">Abo-Link und Push-Erinnerungen entstehen auf dem Server. Ohne diese Option zeigen sie nur „Termin“. Eingeschaltet liegt der Kalender-Schlüssel auf dem Server, dann sind deine Termintitel und die gemeinsamen Termine deiner Haushalte dort lesbar.</p>
+                    <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="Titel im Abo und in Erinnerungen">
+                        <button class="px-4 py-2 rounded-lg shadow disabled:opacity-60" role="radio" [attr.aria-checked]="!vault.feedTitles()" [disabled]="busy()"
+                                [class]="!vault.feedTitles() ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-950'"
+                                (click)="vault.feedTitles() && setFeedTitles(false)">Nur „Termin“</button>
+                        <button class="px-4 py-2 rounded-lg shadow disabled:opacity-60" role="radio" [attr.aria-checked]="vault.feedTitles()" [disabled]="busy()"
+                                [class]="vault.feedTitles() ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-950'"
+                                (click)="!vault.feedTitles() && setFeedTitles(true)">Titel zeigen</button>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-2">
+                    <h3 class="font-semibold">Wiederherstellungscode</h3>
+                    @if (newRecoveryCode(); as code) {
+                        <p class="text-sm">Bewahre den neuen Code sicher auf. Nach dem Speichern gilt der alte nicht mehr.</p>
+                        <p class="p-3 rounded-lg bg-white font-mono text-center whitespace-nowrap overflow-x-auto select-all">{{ code }}</p>
+                        <div class="flex flex-wrap gap-2">
+                            <button class="px-4 py-2 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white disabled:opacity-60" [disabled]="busy()" (click)="saveRecoveryCode()">Neuen Code speichern</button>
+                            <button class="text-sm underline" (click)="newRecoveryCode.set(null)">Abbrechen</button>
+                        </div>
+                    } @else {
+                        <p class="text-sm">Code verloren? Solange dieses Gerät entsperrt ist, kannst du einen neuen erstellen.</p>
+                        <button class="self-start px-4 py-2 rounded-lg shadow bg-white hover:bg-gray-200" (click)="startRecoveryCode()">Neuen Code erstellen</button>
+                    }
+                </div>
+            } @else {
+                <button class="self-start px-4 py-2 rounded-lg shadow bg-indigo-600 hover:bg-fuchsia-500 text-white" (click)="unlockVault()">Einrichten oder entsperren</button>
+            }
+
+            @if (cryptoMessage()) {
+                <p class="text-sm">{{ cryptoMessage() }}</p>
+            }
+            @if (cryptoError()) {
+                <p class="p-2 rounded bg-red-200 text-red-900 text-sm" role="alert">{{ cryptoError() }}</p>
+            }
+        </section>
+
         <!-- Passkeys -->
         <section class="rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-4 flex flex-col gap-3">
             <h2 class="font-semibold text-lg">Passkeys</h2>

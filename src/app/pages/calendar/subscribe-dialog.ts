@@ -48,6 +48,10 @@ function errorMessage(error: unknown): string {
             </ul>
             <p class="mt-2">Neue Termine erscheinen je nach Kalender nach einigen Minuten bis Stunden (Google aktualisiert am langsamsten).</p>
           </details>
+          <p class="text-xs">
+            Deine Termine sind verschlüsselt, deshalb heisst im Abo jeder Termin nur „Termin“. Titel zeigen kannst du unter
+            Optionen → Verschlüsselung einschalten.
+          </p>
           <p class="text-xs text-red-800">Wer den Link kennt, sieht deine Termine. Teile ihn nicht. Erneuern macht den alten Link ungültig.</p>
           <div class="flex flex-wrap gap-2 justify-end">
             <button class="mr-auto px-4 py-2 rounded-lg text-red-700 hover:bg-red-100" (click)="remove()">Link löschen</button>
