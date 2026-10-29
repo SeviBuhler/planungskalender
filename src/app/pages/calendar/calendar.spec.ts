@@ -53,7 +53,7 @@ describe('Calendar', () => {
     store = new FakeCalendarStore();
     store.events.push({
       id: 'x', title: 'Zahnarzt', description: null, start: new Date(2026, 9, 28, 9), end: new Date(2026, 9, 28, 10),
-      allDay: false, ownerId: 'me', householdId: null, category: null, seriesId: null, recurrence: null, recurrenceUntil: null, reminderMinutes: null,
+      allDay: false, ownerId: 'me', householdId: null, category: null, seriesId: null, recurrence: null, recurrenceUntil: null, reminderMinutes: null, birthYear: null,
     });
     await TestBed.configureTestingModule({
       imports: [Calendar],
@@ -234,6 +234,33 @@ describe('Calendar', () => {
     const created = store.events.find((e) => e.title === 'Lauftraining')!;
     expect(created.category).toBe('leisure');
     expect(component.tileClass(created)).toContain('violet');
+  });
+
+  it('makes a birthday all-day and yearly and shows the age', async () => {
+    component.newEvent(new Date(2026, 9, 30, 9));
+    component.patchForm({ title: 'Anna' });
+    component.setCategory('birthday');
+    const f = component.form()!;
+    expect(f.allDay).toBe(true);
+    expect(f.recurrence).toBe('yearly');
+    expect(f.recurrenceUntil).toBe('2076-10-30');
+    component.patchForm({ birthYear: '1996' });
+    await component.saveEvent();
+    const birthdays = store.events.filter((e) => e.title === 'Anna');
+    expect(birthdays.length).toBe(51);
+    expect(birthdays.every((e) => e.allDay && e.birthYear === 1996)).toBe(true);
+    expect(component.age(birthdays[0])).toBe(30);
+    expect(component.age(birthdays[1])).toBe(31);
+    expect(component.tileClass(birthdays[0])).toContain('amber');
+  });
+
+  it('rejects an invalid birth year', async () => {
+    component.newEvent();
+    component.patchForm({ title: 'Lukas' });
+    component.setCategory('birthday');
+    component.patchForm({ birthYear: '3000' });
+    await component.saveEvent();
+    expect(component.errorText()).toContain('Geburtsjahr');
   });
 
   it('stores the reminder and clears it when switching to all-day', async () => {

@@ -1,7 +1,7 @@
 // Pure date and layout helpers for the calendar views (all in local time)
 
 export type CalendarView = 'year' | 'month' | 'week' | 'day';
-export type Category = 'work' | 'private' | 'family' | 'health' | 'leisure' | 'other';
+export type Category = 'work' | 'private' | 'family' | 'health' | 'leisure' | 'birthday' | 'other';
 export type Recurrence = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly';
 
 export interface CalendarEvent {
@@ -18,6 +18,7 @@ export interface CalendarEvent {
   recurrence: Recurrence | null;
   recurrenceUntil: string | null; // last day of the series, YYYY-MM-DD
   reminderMinutes: number | null; // remind this many minutes before the start; null = no reminder
+  birthYear: number | null; // birthdays only: shows the age the person turns
 }
 
 export interface CalendarDay {

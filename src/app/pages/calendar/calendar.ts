@@ -29,6 +29,7 @@ import { ImportDialog } from './import-dialog';
 import { GLASS, PHONE_MENU_ITEM, PageHeader } from '../../components/page-header/page-header';
 import { ViewPicker } from '../../components/view-picker/view-picker';
 import { ScrollToHour } from './scroll-to-hour';
+import { BirthdayIcon } from '../../components/birthday-icon/birthday-icon';
 
 const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 // Phones show three days in the week view, larger screens Monday to Sunday
@@ -50,6 +51,8 @@ const SWIPE_MIN_PX = 60;
 const FLICK_MIN_PX = 20;
 const FLICK_MIN_SPEED = 0.4; // px per ms
 const MAX_TILES = 3;
+// A new birthday repeats every year for this long, practically for good
+const BIRTHDAY_YEARS = 50;
 
 interface EventForm {
   original: CalendarEvent | null; // the event being edited
@@ -66,6 +69,7 @@ interface EventForm {
   recurrence: Recurrence | 'none';
   recurrenceUntil: string;
   scope: 'one' | 'following'; // which occurrences of a series a change applies to
+  birthYear: string; // birthdays only, '' = unknown
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -107,7 +111,7 @@ function errorMessage(error: unknown): string {
 
 @Component({
   selector: 'app-calendar',
-  imports: [PageHeader, ViewPicker, FormsModule, Select, SubscribeDialog, ReminderDialog, ImportDialog, ScrollToHour],
+  imports: [PageHeader, ViewPicker, FormsModule, Select, SubscribeDialog, ReminderDialog, ImportDialog, ScrollToHour, BirthdayIcon],
   templateUrl: './calendar.html',
   styleUrl: './calendar.css',
 })
@@ -319,6 +323,17 @@ export class Calendar {
     return CATEGORIES.find((c) => c.id === event.category)?.tile ?? DEFAULT_TILE;
   }
 
+  isBirthday(event: CalendarEvent): boolean {
+    return event.category === 'birthday';
+  }
+
+  // The age a person turns on this occurrence, when the birth year is known
+  age(event: CalendarEvent): number | null {
+    if (event.category !== 'birthday' || event.birthYear === null) return null;
+    const age = event.start.getFullYear() - event.birthYear;
+    return age > 0 ? age : null;
+  }
+
   dotClass(event: CalendarEvent): string {
     return CATEGORIES.find((c) => c.id === event.category)?.dot ?? DEFAULT_DOT;
   }
@@ -481,6 +496,7 @@ export class Calendar {
       recurrence: 'none',
       recurrenceUntil: '',
       scope: 'one',
+      birthYear: '',
     });
   }
 
@@ -509,6 +525,7 @@ export class Calendar {
       recurrence: event.recurrence ?? 'none',
       recurrenceUntil: event.recurrenceUntil ?? '',
       scope: 'one',
+      birthYear: event.birthYear === null ? '' : String(event.birthYear),
     });
   }
 
@@ -516,6 +533,24 @@ export class Calendar {
     // The reminder choices differ between timed and all-day events
     if (changes.allDay !== undefined && changes.allDay !== this.form()?.allDay) changes = { ...changes, reminder: '' };
     this.form.update((f) => (f ? { ...f, ...changes } : f));
+  }
+
+  // A new birthday is all-day and repeats every year
+  setCategory(category: Category | '') {
+    const f = this.form();
+    if (!f) return;
+    if (category !== 'birthday' || f.original) {
+      this.patchForm({ category });
+      return;
+    }
+    const start = fromInputs(f.startDate, '00:00');
+    this.patchForm({
+      category,
+      allDay: true,
+      endDate: f.startDate,
+      recurrence: 'yearly',
+      recurrenceUntil: dateInput(new Date(start.getFullYear() + BIRTHDAY_YEARS, start.getMonth(), start.getDate())),
+    });
   }
 
   setRecurrence(recurrence: Recurrence | 'none') {
@@ -548,6 +583,11 @@ export class Calendar {
       this.errorText.set('Das Ende liegt vor dem Beginn');
       return;
     }
+    const birthYear = f.category === 'birthday' && String(f.birthYear).trim() ? Number(f.birthYear) : null;
+    if (birthYear !== null && !(Number.isInteger(birthYear) && birthYear >= 1900 && birthYear <= start.getFullYear())) {
+      this.errorText.set('Bitte ein gültiges Geburtsjahr eingeben, z.B. 1996');
+      return;
+    }
     const base = {
       title: f.title.trim(),
       description: f.description.trim() || null,
@@ -555,6 +595,7 @@ export class Calendar {
       householdId: f.householdChoice === 'private' ? null : f.householdChoice,
       category: f.category || null,
       reminderMinutes: f.reminder === '' ? null : Number(f.reminder),
+      birthYear,
     };
     const original = f.original;
     const repeat = this.showRecurrence(f) && f.recurrence !== 'none' ? f.recurrence : null;
