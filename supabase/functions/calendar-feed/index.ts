@@ -8,6 +8,9 @@
 //
 // Enthalten sind private Termine und die Termine der Haushalte mit Modul Kalender, von einem
 // Jahr zurück bis drei Jahre voraus. Zeitzone für ganztägige Termine: FEED_TIMEZONE oder Europe/Zurich.
+//
+// Titel sind Ende-zu-Ende verschlüsselt. Lesbar sind sie hier nur, wenn die Person in den Optionen
+// "Titel zeigen" eingeschaltet hat; sonst heisst jeder Termin "Termin".
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
@@ -123,6 +126,46 @@ const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE
   auth: { persistSession: false },
 });
 
+// ---- End-to-end encrypted titles ----
+// Titles and descriptions arrive encrypted ("e1:<scope>:<base64(iv | ciphertext)>", see
+// src/app/features/crypto/e2ee.ts). Only users who switched on "Titel zeigen" in the options left
+// their calendar keys here (table feed_keys); for everyone else the text stays unreadable.
+
+type FeedKeys = Map<string, Map<string, Promise<CryptoKey>>>; // user → scope → key
+
+async function loadFeedKeys(userIds: string[]): Promise<FeedKeys> {
+  const keys: FeedKeys = new Map();
+  if (!userIds.length) return keys;
+  const { data, error } = await admin.from('feed_keys').select('user_id, scope_id, calendar_key').in('user_id', userIds);
+  if (error) throw error;
+  for (const row of data ?? []) {
+    const raw = Uint8Array.from(atob(row.calendar_key), (c) => c.charCodeAt(0));
+    if (!keys.has(row.user_id)) keys.set(row.user_id, new Map());
+    keys.get(row.user_id)!.set(row.scope_id, crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['decrypt']));
+  }
+  return keys;
+}
+
+// Plain text as it is, decrypted text with the user's key, otherwise null
+async function readable(value: string | null, keys: Map<string, Promise<CryptoKey>> | undefined): Promise<string | null> {
+  if (value === null || !value.startsWith('e1:')) return value;
+  const end = value.indexOf(':', 3);
+  const scope = value.slice(3, end);
+  const key = keys?.get(scope);
+  if (end < 0 || !key) return null;
+  try {
+    const bytes = Uint8Array.from(atob(value.slice(end + 1)), (c) => c.charCodeAt(0));
+    const plain = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: bytes.subarray(0, 12), additionalData: new TextEncoder().encode(scope) },
+      await key,
+      bytes.subarray(12)
+    );
+    return new TextDecoder().decode(plain);
+  } catch {
+    return null;
+  }
+}
+
 function text(status: number, body: string): Response {
   return new Response(body, { status, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
 }
@@ -172,10 +215,18 @@ Deno.serve(async (req) => {
     .limit(MAX_EVENTS);
   if (eventError) return text(500, eventError.message);
 
-  const events: FeedEvent[] = (rows ?? []).map((r) => ({
-    ...r,
-    household: r.household_id ? households.get(r.household_id) ?? null : null,
-  }));
+  const keys = (await loadFeedKeys([feed.user_id])).get(feed.user_id);
+  const events: FeedEvent[] = await Promise.all(
+    (rows ?? []).map(async (r) => {
+      const title = await readable(r.title, keys);
+      return {
+        ...r,
+        title: title ?? 'Termin',
+        description: title === null ? null : await readable(r.description, keys),
+        household: r.household_id ? households.get(r.household_id) ?? null : null,
+      };
+    })
+  );
 
   await admin.from('calendar_feeds').update({ last_fetched_at: new Date().toISOString() }).eq('user_id', feed.user_id);
 

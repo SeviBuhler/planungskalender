@@ -507,6 +507,10 @@ export class Calendar {
   editEvent(event: CalendarEvent, domEvent?: Event) {
     domEvent?.stopPropagation();
     if (this.consumeDrag()) return;
+    if (event.locked) {
+      this.errorText.set('Dieser Termin ist verschlüsselt und für dich noch nicht freigegeben. Er wird lesbar, sobald ein anderes Mitglied des Haushalts ForTwo öffnet.');
+      return;
+    }
     // All-day events store the day after the last day as end
     const lastDay = event.allDay ? addDays(event.end, -1) : event.end;
     this.errorText.set('');

@@ -26,6 +26,10 @@ function errorMessage(error: unknown): string {
           Lass die Mitteilungen dort aus, sonst kommt jede Erinnerung doppelt. Beim Abo über Google Kalender
           gibt es keine Erinnerungen, dann hier einschalten.
         </p>
+        <p class="text-xs">
+          Deine Termine sind verschlüsselt, deshalb heisst die Mitteilung nur „Termin“. Den Titel zeigen kannst du
+          unter Optionen → Verschlüsselung einschalten.
+        </p>
 
         @if (!push.supported) {
           <p class="p-2 rounded bg-amber-100 text-amber-900 text-sm">

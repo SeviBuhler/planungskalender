@@ -11,6 +11,8 @@ import { Supabase } from '../../services/supabase';
 import { ThemeMode, ThemeService } from '../../services/theme';
 import { NavSide, NavSideService } from '../../services/nav-side';
 import { readCodeFromClipboard } from '../../features/auth/paste-code';
+import { Vault } from '../../features/crypto/vault';
+import { generateRecoveryCode } from '../../features/crypto/e2ee';
 
 // Setting up the authenticator app: QR code to scan, then the first code from the app
 interface TotpSetup {
@@ -19,7 +21,7 @@ interface TotpSetup {
   secret: string;
 }
 
-// Options: passkeys, second step (mail code / authenticator app), password, light / dark mode,
+// Options: encryption (recovery code, titles in feed / reminders), passkeys, second step (mail code / authenticator app), password, light / dark mode,
 // side of the phone bar in landscape
 @Component({
   selector: 'app-settings',
@@ -63,12 +65,18 @@ export class Settings implements OnInit {
   readonly mfaMessage = signal('');
   readonly mfaError = signal('');
 
+  // Encryption
+  readonly newRecoveryCode = signal<string | null>(null);
+  readonly cryptoMessage = signal('');
+  readonly cryptoError = signal('');
+
   readonly busy = signal(false);
 
   constructor(
     private supabase: Supabase,
     private passkeys: Passkeys,
     private confirm: ConfirmService,
+    readonly vault: Vault,
     readonly theme: ThemeService,
     readonly navSide: NavSideService,
     route: ActivatedRoute,
@@ -80,9 +88,50 @@ export class Settings implements OnInit {
   async ngOnInit() {
     const { data } = await this.supabase.client.auth.getSession();
     this.email = data.session?.user.email ?? '';
+    void this.vault.restore();
     this.passkeySupported.set(await this.passkeys.supported());
     this.secondFactor.set(await this.supabase.secondFactor());
     await this.loadPasskeys();
+  }
+
+  // --- Encryption ---
+
+  async unlockVault() {
+    this.cryptoError.set('');
+    try {
+      await this.vault.ready();
+    } catch (error) {
+      this.cryptoError.set(messageOf(error));
+    }
+  }
+
+  async setFeedTitles(on: boolean) {
+    if (on && !(await this.confirm.ask(
+      'Titel im Abo und in Erinnerungen zeigen? Dafür liegt der Kalender-Schlüssel auf dem Server, deine Termintitel und die gemeinsamen Termine deiner Haushalte sind dann dort lesbar.',
+      'Einschalten'
+    ))) return;
+    await this.run(this.cryptoError, async () => {
+      this.cryptoMessage.set('');
+      await this.vault.setFeedTitles(on);
+      this.cryptoMessage.set(on
+        ? 'Abo und Erinnerungen zeigen jetzt die Titel deiner Termine.'
+        : 'Abo und Erinnerungen zeigen nur noch „Termin“. Der Schlüssel ist vom Server gelöscht.');
+    });
+  }
+
+  startRecoveryCode() {
+    this.cryptoMessage.set('');
+    this.newRecoveryCode.set(generateRecoveryCode());
+  }
+
+  async saveRecoveryCode() {
+    const code = this.newRecoveryCode();
+    if (!code) return;
+    await this.run(this.cryptoError, async () => {
+      await this.vault.changeRecoveryCode(code);
+      this.newRecoveryCode.set(null);
+      this.cryptoMessage.set('Der neue Wiederherstellungscode gilt ab sofort, der alte nicht mehr.');
+    });
   }
 
   // --- Passkeys ---

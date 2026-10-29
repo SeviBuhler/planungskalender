@@ -10,6 +10,9 @@
 // Web Push (RFC 8291 Verschlüsselung, RFC 8292 VAPID) ist hier mit Web Crypto umgesetzt, ohne
 // npm-Bibliothek: npm:web-push startete in Supabase nicht (504).
 //
+// Termintitel sind Ende-zu-Ende verschlüsselt. Lesbar sind sie hier nur, wenn die Person in den
+// Optionen "Titel zeigen" eingeschaltet hat; sonst heisst die Erinnerung "Termin".
+//
 // Secrets: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY (npx web-push generate-vapid-keys),
 // optional VAPID_SUBJECT (mailto:…) und FEED_TIMEZONE (Standard Europe/Zurich).
 
@@ -40,6 +43,46 @@ interface Due {
   starts_at: string;
   all_day: boolean;
   remind_at: string;
+}
+
+// ---- End-to-end encrypted titles ----
+// Titles and descriptions arrive encrypted ("e1:<scope>:<base64(iv | ciphertext)>", see
+// src/app/features/crypto/e2ee.ts). Only users who switched on "Titel zeigen" in the options left
+// their calendar keys here (table feed_keys); for everyone else the text stays unreadable.
+
+type FeedKeys = Map<string, Map<string, Promise<CryptoKey>>>; // user → scope → key
+
+async function loadFeedKeys(userIds: string[]): Promise<FeedKeys> {
+  const keys: FeedKeys = new Map();
+  if (!userIds.length) return keys;
+  const { data, error } = await admin.from('feed_keys').select('user_id, scope_id, calendar_key').in('user_id', userIds);
+  if (error) throw error;
+  for (const row of data ?? []) {
+    const raw = Uint8Array.from(atob(row.calendar_key), (c) => c.charCodeAt(0));
+    if (!keys.has(row.user_id)) keys.set(row.user_id, new Map());
+    keys.get(row.user_id)!.set(row.scope_id, crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['decrypt']));
+  }
+  return keys;
+}
+
+// Plain text as it is, decrypted text with the user's key, otherwise null
+async function readable(value: string | null, keys: Map<string, Promise<CryptoKey>> | undefined): Promise<string | null> {
+  if (value === null || !value.startsWith('e1:')) return value;
+  const end = value.indexOf(':', 3);
+  const scope = value.slice(3, end);
+  const key = keys?.get(scope);
+  if (end < 0 || !key) return null;
+  try {
+    const bytes = Uint8Array.from(atob(value.slice(end + 1)), (c) => c.charCodeAt(0));
+    const plain = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: bytes.subarray(0, 12), additionalData: new TextEncoder().encode(scope) },
+      await key,
+      bytes.subarray(12)
+    );
+    return new TextDecoder().decode(plain);
+  } catch {
+    return null;
+  }
 }
 
 interface Subscription {
@@ -186,6 +229,16 @@ async function send(): Promise<Response> {
     .in('user_id', users);
   if (subError) return reply(500, { error: subError.message });
 
+  let keys: FeedKeys;
+  try {
+    keys = await loadFeedKeys(users);
+  } catch (e) {
+    return reply(500, { error: (e as Error).message });
+  }
+  const titles = new Map(
+    await Promise.all(reminders.map(async (r) => [`${r.event_id}|${r.user_id}`, (await readable(r.title, keys.get(r.user_id))) ?? 'Termin'] as const))
+  );
+
   let sent = 0;
   const gone = new Set<string>();
   await Promise.all(
@@ -196,7 +249,7 @@ async function send(): Promise<Response> {
           // Format understood by the Angular service worker (ngsw)
           const payload = {
             notification: {
-              title: r.title,
+              title: titles.get(`${r.event_id}|${r.user_id}`)!,
               body: whenText(r.starts_at, r.all_day),
               icon: 'icons/pwa-icon-192x192.png',
               badge: 'icons/favicon-96x96.png',
