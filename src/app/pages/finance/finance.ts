@@ -7,6 +7,7 @@ import { Household, HouseholdStore } from '../../features/households/household-s
 import { ConfirmService } from '../../components/confirm/confirm';
 import { Select, SelectOption } from '../../components/select/select';
 import { IconButton } from '../../components/icon-button/icon-button';
+import { SelectAll } from '../../components/select-all/select-all';
 import { GLASS, PHONE_MENU_ITEM, PageHeader } from '../../components/page-header/page-header';
 import { TitleOption, TitlePicker } from '../../components/title-picker/title-picker';
 import { FinanceSummary } from './finance-summary';
@@ -68,7 +69,7 @@ function rememberedPlan(): string | null {
 
 @Component({
   selector: 'app-finance',
-  imports: [PageHeader, TitlePicker, FormsModule, RouterLink, Select, FinanceSummary, IconButton],
+  imports: [PageHeader, TitlePicker, FormsModule, RouterLink, Select, FinanceSummary, IconButton, SelectAll],
   templateUrl: './finance.html',
   styleUrl: './finance.css',
 })
@@ -360,7 +361,9 @@ export class Finance implements OnDestroy {
     this.edit((b) => ({ ...b, priorities: [...b.priorities, { kind, name: '', amount: 0, desiredRate: null }] }));
   }
 
-  removeItem(list: ListKey, index: number) {
+  async removeItem(list: ListKey, index: number) {
+    const name = (this.budget()[list][index] as { name: string }).name.trim();
+    if (!(await this.confirm.ask(name ? `„${name}“ wirklich löschen?` : 'Position wirklich löschen?', 'Löschen'))) return;
     this.edit((b) => ({ ...b, [list]: (b[list] as object[]).filter((_, i) => i !== index) }));
   }
 
