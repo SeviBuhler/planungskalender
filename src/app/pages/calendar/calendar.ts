@@ -21,6 +21,7 @@ import {
 import { CalendarStore, EventInput } from '../../features/calendar/calendar-store';
 import { ALL_DAY_REMINDERS, CATEGORIES, REMINDERS, DEFAULT_DOT, DEFAULT_TILE, MAX_OCCURRENCES, RECURRENCES, occurrences } from '../../features/calendar/recurrence';
 import { Household, HouseholdStore } from '../../features/households/household-store';
+import { Vault } from '../../features/crypto/vault';
 import { ConfirmService } from '../../components/confirm/confirm';
 import { Select, SelectOption } from '../../components/select/select';
 import { SubscribeDialog } from './subscribe-dialog';
@@ -265,7 +266,8 @@ export class Calendar {
     public supabase: Supabase,
     private store: CalendarStore,
     private householdStore: HouseholdStore,
-    private confirm: ConfirmService
+    private confirm: ConfirmService,
+    private vault: Vault
   ) {
     this.householdStore.list().then(
       (households) => this.households.set(households),
@@ -279,6 +281,7 @@ export class Calendar {
       inject(DestroyRef).onDestroy(() => query.removeEventListener('change', update));
     }
     effect(() => {
+      this.vault.keysVersion(); // a household key arrived: events that were locked become readable
       this.loadEvents(this.date(), this.view(), this.weekLength());
     });
   }
