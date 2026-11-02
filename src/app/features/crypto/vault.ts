@@ -37,6 +37,8 @@ export class Vault {
   readonly state = signal<VaultState>('idle');
   readonly errorText = signal('');
   readonly feedTitles = signal(false);
+  // Goes up when a household key arrives, so pages show the events they could not read before
+  readonly keysVersion = signal(0);
 
   private userId: string | null = null;
   private privateKey: CryptoKey | null = null;
@@ -79,6 +81,7 @@ export class Vault {
 
   // Shares household keys with new members and creates keys for new households
   async refresh(): Promise<void> {
+    if (this.state() === 'idle') return this.restore(); // loading the stored key syncs as well
     if (this.state() !== 'ready') return;
     try {
       await this.syncScopes();
@@ -272,6 +275,7 @@ export class Vault {
       if (this.scopeKeys.has(row.scope_id)) continue;
       try {
         this.scopeKeys.set(row.scope_id, await openScopeKey(row.sealed_key, this.privateKey!));
+        if (this.state() === 'ready') this.keysVersion.update((v) => v + 1);
       } catch {
         console.error('Bereichsschlüssel lässt sich nicht öffnen', row.scope_id);
       }
