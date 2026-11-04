@@ -5,6 +5,7 @@ import {
   CalendarEvent,
   CalendarView,
   Category,
+  PositionedEvent,
   Recurrence,
   addDays,
   buildMonthGrid,
@@ -320,6 +321,11 @@ export class Calendar {
 
   timeLabel(event: CalendarEvent): string {
     return event.allDay ? 'Ganztägig' : `${timeInput(event.start)}–${timeInput(event.end)}`;
+  }
+
+  /** Timed tiles of 30 min or less are too low for two lines, so they show title and time on one line. */
+  isShort(p: PositionedEvent): boolean {
+    return p.height <= (30 / 1440) * 100 + 0.001;
   }
 
   tileClass(event: CalendarEvent): string {
