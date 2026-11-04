@@ -5,3 +5,26 @@
 .swipe-area * {
   touch-action: pan-y pinch-zoom;
 }
+
+/* Short timed events (30 min or less) in the day and week grids: one line with
+   title and time, tight padding and a small font, so a 15-min tile (12px high)
+   still shows readable text instead of two clipped lines. */
+.compact-tile {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 12px;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+}
+.compact-tile > * {
+  min-width: 0;
+  flex-shrink: 1;
+}
+.compact-tile > b {
+  flex-shrink: 0;
+  max-width: 100%;
+}
