@@ -21,7 +21,7 @@ import {
 } from '../../features/calendar/calendar-layout';
 import { CalendarStore, EventInput } from '../../features/calendar/calendar-store';
 import { ALL_DAY_REMINDERS, CATEGORIES, REMINDERS, DEFAULT_DOT, DEFAULT_TILE, MAX_OCCURRENCES, RECURRENCES, occurrences } from '../../features/calendar/recurrence';
-import { Household, HouseholdStore } from '../../features/households/household-store';
+import { Household, HouseholdMember, HouseholdStore } from '../../features/households/household-store';
 import { Vault } from '../../features/crypto/vault';
 import { ConfirmService } from '../../components/confirm/confirm';
 import { Select, SelectOption } from '../../components/select/select';
@@ -72,6 +72,7 @@ interface EventForm {
   recurrenceUntil: string;
   scope: 'one' | 'following'; // which occurrences of a series a change applies to
   birthYear: string; // birthdays only, '' = unknown
+  participants: string[]; // user ids, always including the creator
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -154,6 +155,9 @@ export class Calendar {
     ...this.calendarHouseholds().map((h) => ({ value: h.id, label: `Haushalt „${h.name}“` })),
   ]);
   readonly errorText = signal('');
+  readonly userId = signal<string | null>(null);
+  // Members of each own household, for the participant chips
+  readonly members = signal<Map<string, HouseholdMember[]>>(new Map());
   // Swipe carousel: previous, current and next page sit side by side and the track follows the
   // pointer. Changing the page moves the track by one page width (-100% shows the current page).
   readonly dragX = signal(0);
@@ -274,6 +278,11 @@ export class Calendar {
       (households) => this.households.set(households),
       (error) => this.errorText.set(errorMessage(error))
     );
+    this.householdStore.memberNames().then(
+      (members) => this.members.set(members),
+      (error) => this.errorText.set(errorMessage(error))
+    );
+    this.store.userId().then((id) => this.userId.set(id));
     if (typeof matchMedia === 'function') {
       const query = matchMedia(COMPACT_QUERY);
       this.compact.set(query.matches);
@@ -350,6 +359,31 @@ export class Calendar {
   // Recurrence can be set for new events, single events and "this and following"
   showRecurrence(f: EventForm): boolean {
     return !f.original?.seriesId || f.scope === 'following';
+  }
+
+  // Shared event the user does not take part in: shown dimmed with the badge "Info"
+  isInfo(event: CalendarEvent): boolean {
+    const me = this.userId();
+    return !!event.householdId && !!me && !!event.participants && !event.participants.includes(me);
+  }
+
+  // The creator of the event in the form; for a new event that is the user
+  formCreator(f: EventForm): string | null {
+    return f.original?.ownerId ?? this.userId();
+  }
+
+  canEditParticipants(f: EventForm): boolean {
+    return this.formCreator(f) === this.userId();
+  }
+
+  formMembers(f: EventForm): HouseholdMember[] {
+    return f.householdChoice === 'private' ? [] : this.members().get(f.householdChoice) ?? [];
+  }
+
+  toggleParticipant(f: EventForm, id: string) {
+    if (id === this.formCreator(f) || !this.canEditParticipants(f)) return;
+    const participants = f.participants.includes(id) ? f.participants.filter((p) => p !== id) : [...f.participants, id];
+    this.patchForm({ participants });
   }
 
   householdName(event: CalendarEvent): string | null {
@@ -506,6 +540,7 @@ export class Calendar {
       recurrenceUntil: '',
       scope: 'one',
       birthYear: '',
+      participants: this.userId() ? [this.userId()!] : [],
     });
   }
 
@@ -539,6 +574,7 @@ export class Calendar {
       recurrenceUntil: event.recurrenceUntil ?? '',
       scope: 'one',
       birthYear: event.birthYear === null ? '' : String(event.birthYear),
+      participants: event.participants ?? [event.ownerId],
     });
   }
 
@@ -611,6 +647,9 @@ export class Calendar {
       birthYear,
     };
     const original = f.original;
+    // Participants count only in a household; members who left are dropped
+    const memberIds = new Set(this.formMembers(f).map((m) => m.id));
+    const participants = f.participants.filter((id) => id === this.formCreator(f) || memberIds.has(id));
     const repeat = this.showRecurrence(f) && f.recurrence !== 'none' ? f.recurrence : null;
     // A single change keeps the occurrence in its series; everything else rebuilds the events
     const rebuild = !original || (original.seriesId ? f.scope === 'following' : repeat !== null);
@@ -620,6 +659,8 @@ export class Calendar {
       inputs = [{
         ...base, start, end,
         seriesId: original.seriesId, recurrence: original.recurrence, recurrenceUntil: original.recurrenceUntil,
+        // Only the creator changes participants
+        ...(this.canEditParticipants(f) ? { participants } : {}),
       }];
     } else if (repeat) {
       if (!f.recurrenceUntil || fromInputs(f.recurrenceUntil, '00:00') < startOfDay(start)) {
@@ -632,9 +673,9 @@ export class Calendar {
         return;
       }
       const seriesId = original?.seriesId ?? crypto.randomUUID();
-      inputs = list.map((o) => ({ ...base, ...o, seriesId, recurrence: repeat, recurrenceUntil: f.recurrenceUntil }));
+      inputs = list.map((o) => ({ ...base, ...o, seriesId, recurrence: repeat, recurrenceUntil: f.recurrenceUntil, participants }));
     } else {
-      inputs = [{ ...base, start, end, seriesId: null, recurrence: null, recurrenceUntil: null }];
+      inputs = [{ ...base, start, end, seriesId: null, recurrence: null, recurrenceUntil: null, participants }];
     }
 
     try {

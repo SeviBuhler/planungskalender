@@ -35,6 +35,9 @@ class FakeHouseholdStore {
     { id: 'h2', name: 'Nur Finanzen', inviteCode: 'B', memberCount: 2, modules: ['finance'] },
   ];
   async list() { return this.households; }
+  async memberNames() {
+    return new Map([['h1', [{ id: 'me', name: 'Sevi' }, { id: 'u2', name: 'Dana' }]]]);
+  }
 }
 
 function pointer(type: string, x: number, y = 0) {
@@ -204,6 +207,42 @@ describe('Calendar', () => {
     expect(created.householdId).toBe('h1');
     expect(component.form()).toBeNull();
     expect(component.positionedEvents().map((p) => p.event.title)).toEqual(['Kino']);
+  });
+
+  it('lets the creator pick participants, the creator stays fixed', async () => {
+    component.newEventAt(10, new Date(2026, 9, 29));
+    component.patchForm({ title: 'Znacht', householdChoice: 'h1' });
+    const f = () => component.form()!;
+    expect(component.formMembers(f()).map((m) => m.name)).toEqual(['Sevi', 'Dana']);
+    expect(f().participants).toEqual(['me']);
+
+    component.toggleParticipant(f(), 'me'); // the creator cannot be removed
+    expect(f().participants).toEqual(['me']);
+    component.toggleParticipant(f(), 'u2');
+    expect(f().participants).toEqual(['me', 'u2']);
+    await component.saveEvent();
+    expect(store.events.find((e) => e.title === 'Znacht')!.participants).toEqual(['me', 'u2']);
+  });
+
+  it('shows shared events without the user as info and keeps their participants', async () => {
+    const shared: CalendarEvent = {
+      id: 's', title: 'Yoga', description: null, start: new Date(2026, 9, 29, 18), end: new Date(2026, 9, 29, 19),
+      allDay: false, ownerId: 'u2', householdId: 'h1', category: null, seriesId: null, recurrence: null, recurrenceUntil: null,
+      reminderMinutes: null, birthYear: null, participants: ['u2'],
+    };
+    store.events.push(shared);
+    await component.reload();
+    expect(component.isInfo(component.eventsFor(new Date(2026, 9, 29))[0])).toBe(true);
+    expect(component.isInfo(store.events[0])).toBe(false); // private
+
+    component.editEvent(shared);
+    const f = component.form()!;
+    expect(component.canEditParticipants(f)).toBe(false);
+    component.toggleParticipant(f, 'me');
+    expect(component.form()!.participants).toEqual(['u2']);
+    component.patchForm({ title: 'Yoga am Abend' });
+    await component.saveEvent();
+    expect(store.events.find((e) => e.id === 's')!.participants).toEqual(['u2']);
   });
 
   it('stores all-day events up to the start of the following day', async () => {

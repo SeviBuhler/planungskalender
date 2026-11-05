@@ -207,7 +207,7 @@ Deno.serve(async (req) => {
 
   const { data: rows, error: eventError } = await admin
     .from('calendar_events')
-    .select('id, title, description, starts_at, ends_at, all_day, category, household_id, created_at, reminder_minutes')
+    .select('id, title, description, starts_at, ends_at, all_day, category, household_id, created_at, reminder_minutes, event_participants(user_id)')
     .or(visibility)
     .lt('starts_at', to)
     .gte('ends_at', from)
@@ -217,10 +217,13 @@ Deno.serve(async (req) => {
 
   const keys = (await loadFeedKeys([feed.user_id])).get(feed.user_id);
   const events: FeedEvent[] = await Promise.all(
-    (rows ?? []).map(async (r) => {
+    (rows ?? []).map(async ({ event_participants, ...r }) => {
       const title = await readable(r.title, keys);
+      // Shared events the user does not take part in are only info: no alarm
+      const participates = !r.household_id || (event_participants ?? []).some((p: { user_id: string }) => p.user_id === feed.user_id);
       return {
         ...r,
+        reminder_minutes: participates ? r.reminder_minutes : null,
         title: title ?? 'Termin',
         description: title === null ? null : await readable(r.description, keys),
         household: r.household_id ? households.get(r.household_id) ?? null : null,
