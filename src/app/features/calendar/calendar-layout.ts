@@ -19,6 +19,7 @@ export interface CalendarEvent {
   recurrenceUntil: string | null; // last day of the series, YYYY-MM-DD
   reminderMinutes: number | null; // remind this many minutes before the start; null = no reminder
   birthYear: number | null; // birthdays only: shows the age the person turns
+  participants?: string[]; // user ids; household members who are not in it see an info event
   locked?: boolean; // encrypted with a household key this account does not have yet
 }
 

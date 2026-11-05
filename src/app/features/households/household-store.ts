@@ -18,6 +18,11 @@ export interface Household {
   modules: HouseholdModule[];
 }
 
+export interface HouseholdMember {
+  id: string;
+  name: string;
+}
+
 interface HouseholdRow {
   id: string;
   name: string;
@@ -49,6 +54,19 @@ export class HouseholdStore {
     const { data, error } = await this.supabase.client.from('households').select(COLUMNS).order('created_at');
     if (error) throw error;
     return (data as HouseholdRow[]).map(toHousehold);
+  }
+
+  // Members of all own households by household id, oldest member first
+  async memberNames(): Promise<Map<string, HouseholdMember[]>> {
+    const { data, error } = await this.supabase.client.rpc('household_member_names');
+    if (error) throw error;
+    const result = new Map<string, HouseholdMember[]>();
+    for (const row of (data ?? []) as { household_id: string; user_id: string; display_name: string | null }[]) {
+      const list = result.get(row.household_id) ?? [];
+      list.push({ id: row.user_id, name: row.display_name || 'Mitglied' });
+      result.set(row.household_id, list);
+    }
+    return result;
   }
 
   async create(name: string, modules: HouseholdModule[]): Promise<Household> {

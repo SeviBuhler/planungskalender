@@ -40,13 +40,15 @@ class FakeBudgetStore {
       .filter(([key]) => key.startsWith(planId + '/') && key.split('/')[1] >= from && key.split('/')[1] <= to)
       .map(([, budget]) => budget);
   }
+  loadUntil(planId: string, to: string) { return this.loadRange(planId, '0000-01', to); }
   async save(planId: string, budget: MonthBudget) { this.rows.set(`${planId}/${budget.month}`, structuredClone(budget)); }
 }
 
 const BUDGET: MonthBudget = {
   month: '2026-10',
   startBalance: 200,
-  income: 3000,
+  carryOverride: 200,
+  incomes: [{ name: 'Lohn', amount: 3000 }],
   expenses: [{ name: 'Miete', amountPerUnit: 1400, quantity: 1 }],
   priorities: [
     { kind: 'debt', name: 'Rechnung', amount: 500, desiredRate: null },
@@ -105,7 +107,7 @@ describe('Finance', () => {
 
     expect(store.plans).toEqual([{ id: 'p1', name: 'Mein Budget', ownerId: ME, householdId: null }]);
     expect(component.state()).toBe('ready');
-    expect(component.budget()).toEqual({ month: '2026-10', startBalance: 0, income: 0, expenses: [], priorities: [] });
+    expect(component.budget()).toEqual({ month: '2026-10', startBalance: 0, carryOverride: null, incomes: [], expenses: [], priorities: [] });
   });
 
   it('offers only households that use the finance module', async () => {
@@ -146,14 +148,16 @@ describe('Finance', () => {
     await createPlan('A');
     await createPlan('B');
 
-    component.setField('income', 4000);
+    component.addIncome();
+    component.setItem('incomes', 0, 'name', 'Lohn');
+    component.setItem('incomes', 0, 'amount', '4000');
     expect(component.saveState()).toBe('saving');
     await vi.advanceTimersByTimeAsync(1000);
-    expect(store.rows.get('p2/2026-10')?.income).toBe(4000);
+    expect(store.rows.get('p2/2026-10')?.incomes).toEqual([{ name: 'Lohn', amount: 4000 }]);
     expect(component.saveState()).toBe('saved');
 
     await component.selectPlan('p1');
-    expect(component.budget().income).toBe(0);
+    expect(component.budget().incomes).toEqual([]);
   });
 
   it('only lets the owner edit a plan', async () => {
@@ -173,11 +177,34 @@ describe('Finance', () => {
     await component.goToNextMonth();
     expect(component.budget().month).toBe('2026-11');
     expect(component.budget().priorities).toEqual([{ kind: 'debt', name: 'Kreditkarte', amount: 200, desiredRate: null }]);
+    expect(component.budget().incomes).toEqual(BUDGET.incomes);
+  });
+
+  it('carries the previous balance over, can be set by hand and reset', async () => {
+    store.plans.push({ id: 'p0', name: 'Mein Budget', ownerId: ME, householdId: null });
+    store.rows.set('p0/2026-10', { ...BUDGET, priorities: [] }); // 200 + 3000 - 1400 = 1800
+    store.rows.set('p0/2026-11', { ...BUDGET, month: '2026-11', startBalance: 0, carryOverride: null, priorities: [] });
+    await create();
+    expect(component.budget().month).toBe('2026-11');
+    expect(component.budget().startBalance).toBe(1800);
+    expect(component.computedCarry()).toBe(1800);
+
+    component.setCarry(1000);
+    expect(component.budget().carryOverride).toBe(1000);
+    expect(component.result().endBalance).toBe(2600);
+    await vi.advanceTimersByTimeAsync(1000);
+    await component.goToNextMonth(); // December follows the override
+    expect(component.budget().startBalance).toBe(2600);
+
+    await component.goToPreviousMonth();
+    component.resetCarry();
+    expect(component.budget().carryOverride).toBeNull();
+    expect(component.budget().startBalance).toBe(1800);
   });
 
   it('mixes debts and savings in one priority list with desired payments', async () => {
     store.plans.push({ id: 'p0', name: 'Mein Budget', ownerId: ME, householdId: null });
-    store.rows.set('p0/2026-10', { ...BUDGET, income: 3500 });
+    store.rows.set('p0/2026-10', { ...BUDGET, incomes: [{ name: 'Lohn', amount: 3500 }] });
     await create();
 
     component.addPriority('saving');
@@ -202,13 +229,13 @@ describe('Finance', () => {
     store.rows.set('p0/2026-10', BUDGET);
     await create();
 
-    component.setField('income', 3500);
+    component.setItem('incomes', 0, 'amount', 3500);
     await component.openSummary();
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
 
-    expect(store.rows.get('p0/2026-10')?.income).toBe(3500);
+    expect(store.rows.get('p0/2026-10')?.incomes[0].amount).toBe(3500);
     expect(component.visibilityLabel()).toBe('Privat');
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Oktober 2026');

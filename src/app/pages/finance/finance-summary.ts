@@ -1,5 +1,5 @@
 import { Component, computed, effect, input, output, signal, untracked } from '@angular/core';
-import { MonthBudget } from '../../features/finance/allocate';
+import { MonthBudget, resolveCarry } from '../../features/finance/allocate';
 import { BudgetStore, FinancePlan } from '../../features/finance/budget-store';
 import { SummaryPeriod, monthName, periodLabel, periodRange, summarize } from '../../features/finance/summary';
 import { ExportInfo, download, fileName, summaryPdf, summaryXlsx } from '../../features/finance/summary-export';
@@ -11,6 +11,13 @@ function shiftMonth(month: string, by: number): string {
   const date = new Date(year, m - 1 + by, 1);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
+
+// "Monate" table: grid lines on every cell, sticky header row and month column
+const GRID = 'border-b border-r border-gray-300 px-2 py-1.5 whitespace-nowrap';
+const HEAD_CELL = `${GRID} sticky top-0 bg-gray-200 font-semibold`;
+const FIRST_CELL = `${GRID} sticky left-0 z-10 text-left`;
+const NUM_CELL = `${GRID} text-right`;
+const FOOT_CELL = 'border-t-2 border-r border-gray-400 bg-gray-100 px-2 py-1.5 whitespace-nowrap';
 
 const CARD = 'rounded-lg bg-gray-100 dark:bg-gray-200 text-indigo-950 shadow p-4';
 const BUTTON = 'px-3 py-2 rounded-lg shadow bg-indigo-600 dark:bg-indigo-700 hover:bg-fuchsia-500 text-white disabled:opacity-50';
@@ -53,7 +60,7 @@ const BUTTON = 'px-3 py-2 rounded-lg shadow bg-indigo-600 dark:bg-indigo-700 hov
             <section [class]="card + ' h-fit'">
               <h3 class="font-semibold text-lg mb-3">Übersicht</h3>
               <dl class="grid grid-cols-2 gap-y-2 text-sm">
-                <dt>Startguthaben</dt><dd class="text-right">{{ chf(s.startBalance) }}</dd>
+                <dt>Übertrag</dt><dd class="text-right">{{ chf(s.startBalance) }}</dd>
                 <dt>Einnahmen</dt><dd class="text-right">+ {{ chf(s.income) }}</dd>
                 <dt>Ausgaben</dt><dd class="text-right">− {{ chf(s.plannedTotal) }}</dd>
                 <dt>Schuldenzahlungen</dt><dd class="text-right">− {{ chf(s.debtTotal) }}</dd>
@@ -67,29 +74,45 @@ const BUTTON = 'px-3 py-2 rounded-lg shadow bg-indigo-600 dark:bg-indigo-700 hov
               }
             </section>
 
-            <div class="lg:col-span-2 flex flex-col gap-4">
+            <div class="lg:col-span-2 min-w-0 flex flex-col gap-4">
               @if (s.period.kind === 'year') {
                 <section [class]="card">
-                  <h3 class="font-semibold text-lg mb-3">Monate</h3>
-                  <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                      <thead><tr class="text-xs text-left">
-                        <th class="py-1">Monat</th><th class="text-right">Einnahmen</th><th class="text-right">Ausgaben</th><th class="text-right">Schulden</th><th class="text-right">Sparen</th><th class="text-right">Ende</th>
-                      </tr></thead>
+                  <h3 class="font-semibold text-lg mb-3">Monate <span class="text-xs font-normal opacity-60">in CHF</span></h3>
+                  <!-- Header and month column stay in place while the table scrolls (sideways on phones) -->
+                  <div class="max-h-[70vh] overflow-auto overscroll-contain rounded border border-gray-300 bg-white">
+                    <table class="min-w-full border-separate border-spacing-0 text-sm tabular-nums">
+                      <thead>
+                        <tr class="text-xs">
+                          <th [class]="headCell + ' left-0 z-30 text-left'">Monat</th>
+                          @for (h of monthColumns; track h) {
+                            <th [class]="headCell + ' z-20 text-right'">{{ h }}</th>
+                          }
+                        </tr>
+                      </thead>
                       <tbody>
-                        @for (m of s.months; track m.month) {
-                          <tr class="border-t border-gray-300" [class.text-red-700]="!m.plannedCovered">
-                            <td class="py-1 pr-2 capitalize">{{ monthName(m.month) }}</td>
-                            <td class="text-right">{{ chf(m.income) }}</td><td class="text-right">{{ chf(m.plannedTotal) }}</td>
-                            <td class="text-right">{{ chf(m.debtTotal) }}</td><td class="text-right">{{ chf(m.savingsTotal) }}</td>
-                            <td class="text-right">{{ chf(m.endBalance) }}</td>
+                        @for (m of s.months; track m.month; let odd = $odd) {
+                          @let row = odd ? 'bg-gray-50' : 'bg-white';
+                          <tr>
+                            <td [class]="row + ' ' + firstCell + ' capitalize'" [class.text-red-700]="!m.plannedCovered" [title]="m.plannedCovered ? '' : 'Ausgaben nicht gedeckt'">{{ monthName(m.month) }}@if (!m.plannedCovered) { !}</td>
+                            <td [class]="row + ' ' + numCell" [class.text-red-700]="m.startBalance < 0">{{ chf(m.startBalance) }}</td>
+                            <td [class]="row + ' ' + numCell" [class.text-red-700]="m.income < 0">{{ chf(m.income) }}</td>
+                            <td [class]="row + ' ' + numCell" [class.text-red-700]="m.plannedTotal < 0">{{ chf(m.plannedTotal) }}</td>
+                            <td [class]="row + ' ' + numCell" [class.text-red-700]="m.debtTotal + m.savingsTotal < 0">{{ chf(m.debtTotal + m.savingsTotal) }}</td>
+                            <td [class]="row + ' ' + numCell + ' font-semibold ' + balanceColor(m.endBalance)">{{ chf(m.endBalance) }}</td>
                           </tr>
                         }
                       </tbody>
-                      <tfoot><tr class="border-t-2 border-gray-400 font-semibold">
-                        <td class="py-1">Total</td><td class="text-right">{{ chf(s.income) }}</td><td class="text-right">{{ chf(s.plannedTotal) }}</td>
-                        <td class="text-right">{{ chf(s.debtTotal) }}</td><td class="text-right">{{ chf(s.savingsTotal) }}</td><td></td>
-                      </tr></tfoot>
+                      <!-- The carry-over is not added up: January's carry-over is the starting wealth, the balance the end of December -->
+                      <tfoot>
+                        <tr class="font-bold">
+                          <td [class]="footCell + ' sticky left-0 z-10 text-left'" title="Übertrag = Startvermögen, Saldo = Endstand">Total</td>
+                          <td [class]="footCell + ' text-right'" [class.text-red-700]="s.startBalance < 0" title="Startvermögen">{{ chf(s.startBalance) }}</td>
+                          <td [class]="footCell + ' text-right'" [class.text-red-700]="s.income < 0">{{ chf(s.income) }}</td>
+                          <td [class]="footCell + ' text-right'" [class.text-red-700]="s.plannedTotal < 0">{{ chf(s.plannedTotal) }}</td>
+                          <td [class]="footCell + ' text-right'" [class.text-red-700]="s.debtTotal + s.savingsTotal < 0">{{ chf(s.debtTotal + s.savingsTotal) }}</td>
+                          <td [class]="footCell + ' text-right ' + balanceColor(s.endBalance)" title="Endstand">{{ chf(s.endBalance) }}</td>
+                        </tr>
+                      </tfoot>
                     </table>
                   </div>
                 </section>
@@ -144,6 +167,11 @@ export class FinanceSummary {
   readonly card = CARD;
   readonly button = BUTTON;
   readonly monthName = monthName;
+  readonly monthColumns = ['Übertrag', 'Einnahmen', 'Ausgaben', 'Sparen/Schulden', 'Saldo'];
+  readonly headCell = HEAD_CELL;
+  readonly firstCell = FIRST_CELL;
+  readonly numCell = NUM_CELL;
+  readonly footCell = FOOT_CELL;
 
   readonly state = signal<LoadState>('loading');
   readonly errorText = signal('');
@@ -173,6 +201,10 @@ export class FinanceSummary {
 
   chf(value: number): string {
     return value.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  balanceColor(value: number): string {
+    return value < 0 ? 'text-red-700' : value > 0 ? 'text-green-700' : '';
   }
 
   progress(paid: number, start: number): number {
@@ -213,8 +245,9 @@ export class FinanceSummary {
     const token = ++this.loadToken;
     this.state.set('loading');
     try {
-      const { from, to } = periodRange({ kind: 'year', year });
-      const budgets = await this.store.loadRange(this.plan().id, from, to);
+      // All months up to the end of the year, because the carry-over runs through every month before
+      const { to } = periodRange({ kind: 'year', year });
+      const budgets = resolveCarry(await this.store.loadUntil(this.plan().id, to));
       if (token !== this.loadToken) return;
       this.budgets.set(budgets);
       this.loadedYear = year;

@@ -5,7 +5,8 @@ import { summarySheets, summaryTables } from './summary-export';
 const OCTOBER: MonthBudget = {
   month: '2026-10',
   startBalance: 200,
-  income: 3000,
+  carryOverride: 200,
+  incomes: [{ name: 'Lohn', amount: 3000 }],
   expenses: [
     { name: 'Miete', amountPerUnit: 1400, quantity: 1 },
     { name: 'Einkauf', amountPerUnit: 100, quantity: 4 },
@@ -15,7 +16,7 @@ const OCTOBER: MonthBudget = {
     { kind: 'saving', name: 'Ferien', amount: 2000, desiredRate: 300 },
   ],
 };
-const NOVEMBER: MonthBudget = { ...carryOver(OCTOBER), income: 3000 };
+const NOVEMBER: MonthBudget = carryOver(OCTOBER);
 
 describe('summarize', () => {
   it('sums up a single month like the month view', () => {
@@ -50,7 +51,7 @@ describe('summarize', () => {
   });
 
   it('reports months whose planned expenses are not covered and ignores other years', () => {
-    const broke = { ...OCTOBER, month: '2026-12', startBalance: 0, income: 1000 };
+    const broke = { ...OCTOBER, month: '2026-12', startBalance: 0, incomes: [{ name: 'Lohn', amount: 1000 }] };
     const summary = summarize({ kind: 'year', year: 2026 }, [broke, { ...OCTOBER, month: '2025-12' }]);
     expect(summary.months.length).toBe(1);
     expect(summary.uncoveredMonths).toEqual(['2026-12']);
@@ -82,6 +83,8 @@ describe('summary export', () => {
       ['Plan', 'Wir'],
       ['Sichtbar für', 'Haushalt „Wir zwei“'],
     ]);
-    expect(sheets[1].rows.at(-1)).toEqual(['Total', null, 6000, 3600, 1500, 600, null]);
+    // carry-over: first month's, balance: last month's
+    expect(sheets[1].rows[0]).toEqual(['Monat', 'Übertrag', 'Einnahmen', 'Ausgaben', 'Sparen/Schulden', 'Saldo']);
+    expect(sheets[1].rows.at(-1)).toEqual(['Total', 200, 6000, 3600, 2100, 500]);
   });
 });

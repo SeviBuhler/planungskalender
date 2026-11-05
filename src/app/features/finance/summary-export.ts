@@ -25,7 +25,7 @@ export function summaryTables(summary: Summary): Table[] {
       title: 'Übersicht',
       head: ['', 'CHF'],
       body: [
-        ['Startguthaben', summary.startBalance],
+        ['Übertrag', summary.startBalance],
         ['Einnahmen', summary.income],
         ['Ausgaben', -summary.plannedTotal],
         ['Schuldenzahlungen', -summary.debtTotal],
@@ -38,10 +38,11 @@ export function summaryTables(summary: Summary): Table[] {
   if (summary.period.kind === 'year') {
     tables.push({
       title: 'Monate',
-      head: ['Monat', 'Start', 'Einnahmen', 'Ausgaben', 'Schulden', 'Sparen', 'Ende'],
-      body: summary.months.map((m) => [monthName(m.month), m.startBalance, m.income, m.plannedTotal, m.debtTotal, m.savingsTotal, m.endBalance]),
-      foot: ['Total', null, summary.income, summary.plannedTotal, summary.debtTotal, summary.savingsTotal, null],
-      widths: [14, 12, 12, 12, 12, 12, 12],
+      head: ['Monat', 'Übertrag', 'Einnahmen', 'Ausgaben', 'Sparen/Schulden', 'Saldo'],
+      body: summary.months.map((m) => [monthName(m.month), m.startBalance, m.income, m.plannedTotal, m.debtTotal + m.savingsTotal, m.endBalance]),
+      // The carry-over is not added up: the total row starts with the first month's carry-over and ends with the last balance
+      foot: ['Total', summary.startBalance, summary.income, summary.plannedTotal, summary.debtTotal + summary.savingsTotal, summary.endBalance],
+      widths: [14, 13, 13, 13, 16, 13],
     });
   }
   tables.push(

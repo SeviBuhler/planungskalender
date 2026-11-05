@@ -21,10 +21,11 @@ interface EventRow {
   recurrence_until: string | null;
   reminder_minutes: number | null;
   birth_year: number | null;
+  event_participants?: { user_id: string }[];
 }
 
 const COLUMNS =
-  'id, title, description, starts_at, ends_at, all_day, owner_id, household_id, category, series_id, recurrence, recurrence_until, reminder_minutes, birth_year';
+  'id, title, description, starts_at, ends_at, all_day, owner_id, household_id, category, series_id, recurrence, recurrence_until, reminder_minutes, birth_year, event_participants(user_id)';
 
 const LOCKED_TITLE = '🔒 Verschlüsselt';
 const MIGRATE_PAGE = 1000;
@@ -50,10 +51,12 @@ async function toEvent(row: EventRow, vault: Vault): Promise<CalendarEvent> {
     recurrenceUntil: row.recurrence_until,
     reminderMinutes: row.reminder_minutes,
     birthYear: row.birth_year,
+    participants: (row.event_participants ?? []).map((p) => p.user_id),
   };
 }
 
 const IMPORT_CHUNK = 500;
+const PARTICIPANT_CHUNK = 500;
 
 // Same text gives the same id, so a second import keeps the occurrences in one series
 async function seriesUuid(text: string): Promise<string> {
@@ -109,12 +112,20 @@ export class CalendarStore {
     return Promise.all((data as EventRow[]).map((row) => toEvent(row, this.vault)));
   }
 
-  // Creates one event or all occurrences of a series in one request
+  // Creates one event or all occurrences of a series in one request. The creator is entered as
+  // participant by the database, the other chosen participants are added here.
   async create(inputs: EventInput[]): Promise<void> {
     await this.vault.ready();
     const rows = await Promise.all(inputs.map((input) => toRow(input, this.vault)));
-    const { error } = await this.supabase.client.from('calendar_events').insert(rows);
+    const { data, error } = await this.supabase.client.from('calendar_events').insert(rows).select('id, owner_id');
     if (error) throw error;
+    const extra = (data as { id: string; owner_id: string }[]).flatMap((row, i) =>
+      [...new Set(inputs[i].participants ?? [])].filter((user) => user !== row.owner_id).map((user) => ({ event_id: row.id, user_id: user }))
+    );
+    for (let i = 0; i < extra.length; i += PARTICIPANT_CHUNK) {
+      const { error: participantError } = await this.supabase.client.from('event_participants').insert(extra.slice(i, i + PARTICIPANT_CHUNK));
+      if (participantError) throw participantError;
+    }
   }
 
   // Imported events carry a key from the file; importing the same file again updates them
@@ -153,10 +164,31 @@ export class CalendarStore {
     }
   }
 
+  // Participants are only passed (and changed) when the creator saves the event
   async update(id: string, input: EventInput): Promise<void> {
     await this.vault.ready();
     const { error } = await this.supabase.client.from('calendar_events').update(await toRow(input, this.vault)).eq('id', id);
     if (error) throw error;
+    if (input.participants) await this.setParticipants(id, input.participants);
+  }
+
+  // Only the creator may do this (RLS); the creator stays a participant in any case
+  private async setParticipants(eventId: string, participants: string[]): Promise<void> {
+    const owner = await this.userId();
+    if (!owner) throw new Error('Nicht angemeldet');
+    const keep = [...new Set([owner, ...participants])];
+    const { error } = await this.supabase.client
+      .from('event_participants')
+      .delete()
+      .eq('event_id', eventId)
+      .not('user_id', 'in', `(${keep.join(',')})`);
+    if (error) throw error;
+    const add = keep.filter((user) => user !== owner).map((user) => ({ event_id: eventId, user_id: user }));
+    if (!add.length) return;
+    const { error: addError } = await this.supabase.client
+      .from('event_participants')
+      .upsert(add, { onConflict: 'event_id,user_id', ignoreDuplicates: true });
+    if (addError) throw addError;
   }
 
   async delete(id: string): Promise<void> {
