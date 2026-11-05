@@ -10,6 +10,11 @@ export interface PlannedExpense {
   oneTime?: boolean; // true: only in the month it was created in; otherwise it carries over
 }
 
+export interface IncomeItem {
+  name: string;
+  amount: number;
+}
+
 export type PriorityKind = 'debt' | 'saving';
 
 export interface PriorityItem {
@@ -22,8 +27,9 @@ export interface PriorityItem {
 
 export interface MonthBudget {
   month: string; // YYYY-MM
-  startBalance: number;
-  income: number;
+  startBalance: number; // "Übertrag Vormonat": the override if set, otherwise the previous month's balance
+  carryOverride?: number | null; // null: computed; missing only in months saved before the override existed
+  incomes: IncomeItem[];
   expenses: PlannedExpense[];
   priorities: PriorityItem[]; // debts and savings, highest priority first
 }
@@ -37,6 +43,7 @@ export interface PriorityPayment {
 }
 
 export interface Allocation {
+  incomeTotal: number;
   totalAvailable: number;
   plannedTotal: number;
   availableForPriorities: number;
@@ -55,15 +62,22 @@ export function expenseTotal(expense: PlannedExpense): number {
   return expense.amountPerUnit * expense.quantity;
 }
 
+export function incomeTotal(budget: MonthBudget): number {
+  return sum(budget.incomes.map((i) => i.amount));
+}
+
 interface LegacyBudget {
+  income?: number;
   debts?: { name: string; open: number; note?: string }[];
   savings?: { name: string; target: number; desiredRate: number }[];
 }
 
 // Months saved before the shared priority list had separate debts (paid in full, first)
-// and savings lists; they keep their result: debts first, then savings
+// and savings lists; they keep their result: debts first, then savings.
+// A single income from before the income list becomes the position "Einnahme".
 export function normalizeBudget(raw: MonthBudget & LegacyBudget): MonthBudget {
-  const { debts, savings, ...rest } = raw;
+  const { debts, savings, income, ...base } = raw;
+  const rest = { ...base, incomes: raw.incomes ?? (income ? [{ name: 'Einnahme', amount: income }] : []) };
   if (raw.priorities) return { ...rest, priorities: raw.priorities };
   return {
     ...rest,
@@ -75,7 +89,8 @@ export function normalizeBudget(raw: MonthBudget & LegacyBudget): MonthBudget {
 }
 
 export function allocate(budget: MonthBudget): Allocation {
-  const totalAvailable = budget.startBalance + budget.income;
+  const incomes = incomeTotal(budget);
+  const totalAvailable = budget.startBalance + incomes;
   const plannedTotal = sum(budget.expenses.map(expenseTotal));
   const availableForPriorities = totalAvailable - plannedTotal;
 
@@ -93,6 +108,7 @@ export function allocate(budget: MonthBudget): Allocation {
   const totalSpent = plannedTotal + debtTotal + savingsTotal;
 
   return {
+    incomeTotal: incomes,
     totalAvailable,
     plannedTotal,
     availableForPriorities,
@@ -112,17 +128,50 @@ export function nextMonth(month: string): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
-// Starts the following month from this one: end balance becomes the start balance,
-// one-time expenses, paid-off debts and reached savings goals drop out, income has to be entered again.
+// Starts the following month from this one: the end balance is carried over, incomes and monthly
+// expenses stay, one-time expenses, paid-off debts and reached savings goals drop out.
 export function carryOver(budget: MonthBudget): MonthBudget {
   const result = allocate(budget);
   return {
     month: nextMonth(budget.month),
     startBalance: result.endBalance,
-    income: 0,
+    carryOverride: null,
+    incomes: budget.incomes.map((i) => ({ ...i })),
     expenses: budget.expenses.filter((e) => !e.oneTime).map((e) => ({ ...e })),
     priorities: budget.priorities
       .map((item, i) => ({ ...item, amount: result.priorities[i].remaining }))
       .filter((item) => item.amount > 0),
   };
+}
+
+// What is carried into `month` without an override: the balance at the end of the month before,
+// across the turn of the year. Months in between that were never saved count as carried over.
+// `resolved` are saved months, oldest first, with their own carry-over already resolved.
+export function computedCarry(month: string, resolved: MonthBudget[]): number {
+  let before = resolved.filter((b) => b.month < month).at(-1);
+  if (!before) return 0;
+  while (nextMonth(before.month) < month) before = carryOver(before);
+  return allocate(before).endBalance;
+}
+
+// Fills in the carry-over of every saved month from the months before it, oldest first, so an
+// override or a change in one month reaches all following months
+export function resolveCarry(saved: MonthBudget[]): MonthBudget[] {
+  const resolved: MonthBudget[] = [];
+  for (const budget of [...saved].sort((a, b) => a.month.localeCompare(b.month))) {
+    // Not yet migrated: the first month keeps its start balance, it has no month before it
+    const override = budget.carryOverride !== undefined ? budget.carryOverride : resolved.length ? null : budget.startBalance || null;
+    resolved.push({ ...budget, carryOverride: override, startBalance: override ?? computedCarry(budget.month, resolved) });
+  }
+  return resolved;
+}
+
+// The month as it is saved, or carried over from the last saved month before it
+export function budgetFor(month: string, resolved: MonthBudget[]): MonthBudget | null {
+  const saved = resolved.find((b) => b.month === month);
+  if (saved) return saved;
+  let before = resolved.filter((b) => b.month < month).at(-1);
+  if (!before) return null;
+  while (before.month < month) before = carryOver(before);
+  return before;
 }

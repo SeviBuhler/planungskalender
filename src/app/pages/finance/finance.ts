@@ -1,7 +1,7 @@
 import { Component, OnDestroy, computed, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { MonthBudget, PriorityKind, allocate, carryOver, expenseTotal, nextMonth } from '../../features/finance/allocate';
+import { MonthBudget, PriorityKind, allocate, budgetFor, computedCarry, expenseTotal, nextMonth, resolveCarry } from '../../features/finance/allocate';
 import { BudgetStore, FinancePlan } from '../../features/finance/budget-store';
 import { Household, HouseholdStore } from '../../features/households/household-store';
 import { ConfirmService } from '../../components/confirm/confirm';
@@ -12,7 +12,7 @@ import { GLASS, PHONE_MENU_ITEM, PageHeader } from '../../components/page-header
 import { TitleOption, TitlePicker } from '../../components/title-picker/title-picker';
 import { FinanceSummary } from './finance-summary';
 
-type ListKey = 'expenses' | 'priorities';
+type ListKey = 'incomes' | 'expenses' | 'priorities';
 type ViewState = 'loading' | 'empty' | 'ready' | 'error';
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 type Panel = 'none' | 'new' | 'settings';
@@ -48,7 +48,7 @@ function parseField(field: string, value: string | number | null): string | numb
 }
 
 function emptyBudget(month: string): MonthBudget {
-  return { month, startBalance: 0, income: 0, expenses: [], priorities: [] };
+  return { month, startBalance: 0, carryOverride: null, incomes: [], expenses: [], priorities: [] };
 }
 
 function rememberPlan(id: string) {
@@ -116,6 +116,8 @@ export class Finance implements OnDestroy {
 
   readonly budget = signal<MonthBudget>(emptyBudget(currentMonth()));
   readonly result = computed(() => allocate(this.budget()));
+  // Balance of the previous month, used when the carry-over is not set by hand
+  readonly computedCarry = signal(0);
   readonly expenseTotal = expenseTotal;
 
   readonly monthLabel = computed(() => {
@@ -274,9 +276,10 @@ export class Finance implements OnDestroy {
     if (this.state() !== 'ready') this.state.set('loading');
 
     try {
-      const budget = await this.findBudget(plan.id, month);
+      const { budget, carry } = await this.findBudget(plan.id, month);
       if (token !== this.loadToken) return; // a newer month or plan was opened meanwhile
       this.budget.set(budget);
+      this.computedCarry.set(carry);
       this.saveState.set('idle');
       this.state.set('ready');
     } catch (error) {
@@ -284,14 +287,11 @@ export class Finance implements OnDestroy {
     }
   }
 
-  private async findBudget(planId: string, month: string): Promise<MonthBudget> {
-    const stored = await this.store.load(planId, month);
-    if (stored) return stored;
-
-    // No data yet: carry over from the previous month if there is one
-    const previous = await this.store.load(planId, previousMonth(month));
-    if (previous) return { ...carryOver(previous), month };
-    return emptyBudget(month);
+  // The carry-over runs through all months before, so they are all loaded. A month without data
+  // is carried over from the last saved month before it.
+  private async findBudget(planId: string, month: string): Promise<{ budget: MonthBudget; carry: number }> {
+    const resolved = resolveCarry(await this.store.loadUntil(planId, month));
+    return { budget: budgetFor(month, resolved) ?? emptyBudget(month), carry: computedCarry(month, resolved) };
   }
 
   goToPreviousMonth() {
@@ -329,8 +329,18 @@ export class Finance implements OnDestroy {
     this.state.set('error');
   }
 
-  setField(field: 'startBalance' | 'income', value: number) {
-    this.edit((b) => ({ ...b, [field]: Number(value) || 0 }));
+  // Typing a carry-over sets it by hand; it then also counts for all following months
+  setCarry(value: number) {
+    const amount = Number(value) || 0;
+    this.edit((b) => ({ ...b, carryOverride: amount, startBalance: amount }));
+  }
+
+  resetCarry() {
+    this.edit((b) => ({ ...b, carryOverride: null, startBalance: this.computedCarry() }));
+  }
+
+  addIncome() {
+    this.edit((b) => ({ ...b, incomes: [...b.incomes, { name: '', amount: 0 }] }));
   }
 
   setItem(list: ListKey, index: number, field: string, value: string | number | null) {

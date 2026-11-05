@@ -7,7 +7,7 @@ export type SummaryPeriod = { kind: 'month'; month: string } | { kind: 'year'; y
 
 export interface SummaryMonth {
   month: string;
-  startBalance: number;
+  startBalance: number; // "Übertrag": carried in, not part of the income
   income: number;
   plannedTotal: number;
   debtTotal: number;
@@ -33,7 +33,7 @@ export interface SummaryPriority {
 export interface Summary {
   period: SummaryPeriod;
   months: SummaryMonth[];
-  startBalance: number;
+  startBalance: number; // carry-over into the first month: what the period starts with
   income: number;
   plannedTotal: number;
   debtTotal: number;
@@ -94,7 +94,7 @@ export function summarize(period: SummaryPeriod, budgets: MonthBudget[]): Summar
     return {
       month: budget.month,
       startBalance: budget.startBalance,
-      income: budget.income,
+      income: result.incomeTotal,
       plannedTotal: result.plannedTotal,
       debtTotal: result.debtTotal,
       savingsTotal: result.savingsTotal,

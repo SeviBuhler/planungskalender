@@ -100,6 +100,11 @@ export class BudgetStore {
     return (data as { data: MonthBudget }[]).map((row) => normalizeBudget(row.data));
   }
 
+  // All saved months up to `to` (YYYY-MM, inclusive), oldest first: the carry-over runs through all of them
+  loadUntil(planId: string, to: string): Promise<MonthBudget[]> {
+    return this.loadRange(planId, '0000-01', to);
+  }
+
   async save(planId: string, budget: MonthBudget): Promise<void> {
     const { error } = await this.supabase.client
       .from('month_budgets')
