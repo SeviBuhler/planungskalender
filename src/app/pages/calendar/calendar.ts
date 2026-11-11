@@ -155,6 +155,7 @@ export class Calendar {
     ...this.calendarHouseholds().map((h) => ({ value: h.id, label: `Haushalt „${h.name}“` })),
   ]);
   readonly errorText = signal('');
+  private loadError = '';
   readonly userId = signal<string | null>(null);
   // Members of each own household, for the participant chips
   readonly members = signal<Map<string, HouseholdMember[]>>(new Map());
@@ -310,8 +311,12 @@ export class Calendar {
     try {
       const events = await this.store.listRange(from, to);
       if (token === this.loadToken) this.events.set(events);
+      // An earlier load failed (e.g. keys not loaded yet): its message is out of date now
+      if (this.loadError && this.errorText() === this.loadError) this.errorText.set('');
+      this.loadError = '';
     } catch (error) {
-      this.errorText.set(errorMessage(error));
+      this.loadError = errorMessage(error);
+      this.errorText.set(this.loadError);
     }
   }
 

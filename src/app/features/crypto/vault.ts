@@ -48,6 +48,8 @@ export class Vault {
   private moduleKeys = new Map<string, Promise<CryptoKey>>();
   private waiting: { resolve: () => void; reject: (error: Error) => void }[] = [];
   private loading: Promise<void> | null = null;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private failures = 0;
 
   constructor(private supabase: Supabase) {
     supabase.client.auth.onAuthStateChange((event) => {
@@ -82,6 +84,7 @@ export class Vault {
   // Shares household keys with new members and creates keys for new households
   async refresh(): Promise<void> {
     if (this.state() === 'idle') return this.restore(); // loading the stored key syncs as well
+    if (this.state() === 'error') return this.load(); // e.g. the server was not reachable before
     if (this.state() !== 'ready') return;
     try {
       await this.syncScopes();
@@ -240,15 +243,31 @@ export class Vault {
           return;
         }
         await this.useKeys(userId, stored.privateKey, row.public_key, row.personal_scope, row.feed_titles);
+        if (this.failures) {
+          // Pages that showed the error load their content again
+          this.failures = 0;
+          this.keysVersion.update((v) => v + 1);
+        }
       } catch (error) {
         this.state.set('error');
         this.errorText.set(messageOf(error));
         this.settle(new Error(`Die Schlüssel konnten nicht geladen werden (${messageOf(error)}).`));
+        this.retryLater();
       } finally {
         this.loading = null;
       }
     })();
     return this.loading;
+  }
+
+  // A failed load (no network, server clock off) is tried again by itself a few times
+  private retryLater() {
+    if (this.retryTimer || this.failures >= RETRY_DELAYS_MS.length) return;
+    const delay = RETRY_DELAYS_MS[this.failures++];
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      if (this.state() === 'error') void this.load();
+    }, delay);
   }
 
   private async useKeys(userId: string, privateKey: CryptoKey, publicKey: string, personal: string, feedTitles: boolean) {
@@ -370,6 +389,9 @@ export class Vault {
   }
 
   private async forget(clearDevice: boolean) {
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = null;
+    this.failures = 0;
     this.userId = this.privateKey = null;
     this.publicKey = this.personal = '';
     this.scopeKeys.clear();
@@ -380,6 +402,8 @@ export class Vault {
     if (clearDevice) await clearDeviceKeys();
   }
 }
+
+const RETRY_DELAYS_MS = [10_000, 30_000, 60_000];
 
 async function check(request: PromiseLike<{ error: { message: string } | null }>): Promise<void> {
   const { error } = await request;
