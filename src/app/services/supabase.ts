@@ -2,7 +2,7 @@ import { Injectable, signal } from '@angular/core';
 import { createClient, SupabaseClient, Session } from '@supabase/supabase-js';
 import { environment } from '../../environments/environments';
 import { SecondFactor, TrustState, trustState } from '../features/auth/trust';
-import { retryFutureJwt } from './future-jwt';
+import { retryFutureJwt, sharedRenewal } from './future-jwt';
 
 @Injectable({
     providedIn: 'root'
@@ -17,7 +17,7 @@ export class Supabase {
     constructor () {
         this.supabase = createClient(environment.supabaseUrl, environment.supabaseKey, {
             // Waits out a database clock that runs behind the login server (see future-jwt.ts)
-            global: { fetch: retryFutureJwt() },
+            global: { fetch: retryFutureJwt(sharedRenewal(() => this.renewToken())) },
             // Supabase passkeys are still in beta and have to be switched on in the client
             auth: { experimental: { passkey: true } }
         });
@@ -30,6 +30,13 @@ export class Supabase {
             this.currentSession.set(data.session);
             return data.session;
         });
+    }
+
+    // A new access token from the login server (used when the stored one is unusable)
+    private async renewToken(): Promise<string | null> {
+        const { data, error } = await this.supabase.auth.refreshSession();
+        if (error) return null;
+        return data.session?.access_token ?? null;
     }
 
     get client(): SupabaseClient {
